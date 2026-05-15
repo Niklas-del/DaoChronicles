@@ -811,7 +811,9 @@ function renderItemList(items) {
     const imgHtml = it.image
       ? `<img src="${it.image}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:8px;border:1px solid var(--border);">`
       : '';
-    return `<div class="item-card">
+    // Use DB quantity if available, otherwise fall back to stacked count
+    const displayQty = it._qty > 1 ? it._qty : count;
+    return `<div class="item-card" style="position:relative;">
       ${(() => {
         const equippedNames = Object.values(c.equipment || {}).filter(Boolean).map(e => e.name);
         const isEquipped = equippedNames.includes(it.name);
@@ -819,9 +821,17 @@ function renderItemList(items) {
           ? `<span class="remove-btn" title="Unequip from equipment slot first" style="cursor:default;opacity:0.4;">🔒</span>`
           : `<button class="remove-btn" onclick="removeItem(${firstIdx})" title="Remove one">✕</button>`;
       })()}
+      ${displayQty > 1 ? `<div style="
+        position:absolute;top:8px;right:8px;
+        background:var(--gold);color:#0d0d12;
+        font-family:'Cinzel',serif;font-size:0.65rem;font-weight:700;
+        border-radius:4px;padding:1px 6px;
+        box-shadow:0 2px 6px rgba(0,0,0,0.4);
+        z-index:2;line-height:1.4;
+      ">×${displayQty}</div>` : ''}
       ${imgHtml}
       <div class="item-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <div class="item-name">${it.name}${count > 1 ? ` <span style="color:var(--gold);font-family:'Cinzel',serif;font-size:0.75rem;">×${count}</span>` : ''}</div>
+        <div class="item-name">${it.name}</div>
         ${it.custom ? `<label title="Add/change image" style="cursor:pointer;color:var(--text-dim);font-size:0.85rem;flex-shrink:0;">
           📷<input type="file" accept="image/*" style="display:none" onchange="setItemImage(${firstIdx}, event)">
         </label>` : ''}
