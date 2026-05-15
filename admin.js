@@ -905,11 +905,13 @@ function giveGold(amount) {
 async function giveItemCard(name) {
   if (!name || !editingCharId) return;
   const qty = parseInt(document.getElementById('give-item-qty')?.value) || 1;
+  const itemData = allItems.find(i => i.name === name) || {};
+  // Always insert a new row — allows giving multiples even if already owned
   const existing = _charOwnedItems.find(i => i.item_name === name);
   if (existing) {
+    // Stack on existing row
     await _sb.from('character_items').update({ quantity: existing.quantity + qty }).eq('id', existing.id);
   } else {
-    const itemData = allItems.find(i => i.name === name) || {};
     await _sb.from('character_items').insert({ character_id: editingCharId, item_name: name, quantity: qty, custom_data: itemData });
   }
   const row = allCharacters.find(r => r.character?.id === editingCharId);
@@ -920,8 +922,7 @@ async function giveItemCard(name) {
 async function giveSkillCard(name) {
   if (!name || !editingCharId) return;
   const type = document.getElementById('give-skill-type')?.value || 'combat';
-  const already = _charOwnedSkills.find(s => s.skill_name === name && s.skill_type === type);
-  if (already) { toast(`Already has ${name} in ${type} slot`, true); return; }
+  // Skills can be given even if already learned
   const skillData = allSkills.find(s => s.name === name) || {};
   await _sb.from('character_skills').insert({ character_id: editingCharId, skill_name: name, skill_type: type, custom_data: skillData });
   const row = allCharacters.find(r => r.character?.id === editingCharId);
