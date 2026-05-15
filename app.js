@@ -853,7 +853,7 @@ function renderItemList(items) {
             value="1" min="1" max="${displayQty}"
             onclick="event.stopPropagation()"
             style="width:54px;padding:5px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:6px;color:var(--soul-light);font-family:'Cinzel',serif;font-size:0.78rem;text-align:center;outline:none;">
-          <button onclick="consumePillQty('${it.name.replace(/'/g,\"\\'\")}','${it.name.replace(/[^a-zA-Z0-9]/g,'_')}');event.stopPropagation();"
+          <button onclick="consumePillQty('${it.name.replace(/[^a-zA-Z0-9]/g,'_')}','${it.name.replace(/[^a-zA-Z0-9]/g,'_')}');event.stopPropagation();"
             style="flex:1;padding:6px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:6px;color:var(--soul-light);font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;"
             onmouseover="this.style.background='rgba(139,92,246,0.22)'" onmouseout="this.style.background='rgba(139,92,246,0.1)'">
             ${t('consume_pill')}
