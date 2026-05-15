@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dao Chronicle — Cultivation Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app-header">
+  <div class="header-title">⚡ Dao Chronicle</div>
+  <div class="char-switcher" id="charSwitcher">
+    <!-- populated by JS -->
+    <button class="btn-add-char admin-only" onclick="openAddCharModal()" title="Add Character">＋</button>
+    <button class="btn-add-char" onclick="openModal('modal-settings')" title="Settings" style="font-size:0.9rem;">⚙</button>
+  </div>
+</div>
+
+<div id="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('character',this)">
+    <span class="tab-icon">☯</span><span data-i18n="tab_character">Character</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('stats',this)">
+    <span class="tab-icon">📊</span><span data-i18n="tab_stats">Stats</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('map',this)">
+    <span class="tab-icon">🗺</span><span data-i18n="tab_map">Map</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('combat',this)">
+    <span class="tab-icon">⚔</span><span data-i18n="tab_combat">Combat</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('inventory',this)">
+    <span class="tab-icon">🎒</span><span data-i18n="tab_inventory">Inventory</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('lore',this)">
+    <span class="tab-icon">📜</span>Lore
+  </button>
+  <button class="tab-btn" onclick="switchTab('shop',this)">
+    <span class="tab-icon">🏪</span>Shop
+  </button>
+  <button class="tab-btn" onclick="switchTab('alchemy',this)">
+    <span class="tab-icon">⚗</span>Alchemy
+  </button>
+</div>
+
+<div id="main-content">
+
+  <!-- ===================== CHARACTER TAB ===================== -->
+  <div class="tab-panel active" id="tab-character">
+
+    <!-- Character sub-tabs -->
+    <div class="char-sub-tabs">
+      <button class="char-sub-tab-btn active" onclick="switchCharSubTab('overview', this)">☯ Overview</button>
+      <button class="char-sub-tab-btn" onclick="switchCharSubTab('dao', this)">∞ Dao</button>
+    </div>
+
+    <!-- Overview sub-panel -->
+    <div class="char-sub-panel active" id="char-sub-overview">
+
+    <div class="panel" id="cultivation-panel">
+      <div class="panel-title">⚡ <span data-i18n="panel_cultivation">Cultivation</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="cultivation-display" style="border-color:rgba(6,182,212,0.3);background:linear-gradient(135deg,rgba(6,182,212,0.06),rgba(6,182,212,0.02));">
+          <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.2em;color:var(--qi-light);margin-bottom:6px;text-transform:uppercase;">Qi Cultivation</div>
+          <div class="cultivation-stage" id="disp-qi-stage" style="color:var(--qi-light);text-shadow:0 0 20px rgba(6,182,212,0.5);">Mortal</div>
+          <div class="cultivation-sublevel" id="disp-qi-sublevel" style="color:var(--qi);">Early Stage · Lv. 1</div>
+          <div class="power-bar-group" style="margin-top:10px;max-width:100%;">
+            <div class="power-bar-label">
+              <span style="color:var(--qi-light)">Qi Power</span>
+              <span id="qi-val-disp" style="color:var(--text-dim)">0</span>
+            </div>
+            <div class="power-bar-track"><div class="power-bar-fill qi" id="qi-bar" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="cultivation-display" style="border-color:rgba(139,92,246,0.3);background:linear-gradient(135deg,rgba(139,92,246,0.06),rgba(139,92,246,0.02));">
+          <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.2em;color:var(--soul-light);margin-bottom:6px;text-transform:uppercase;">Soul Cultivation</div>
+          <div class="cultivation-stage" id="disp-soul-stage">Mortal</div>
+          <div class="cultivation-sublevel" id="disp-soul-sublevel">Early Stage · Lv. 1</div>
+          <div class="power-bar-group" style="margin-top:10px;max-width:100%;">
+            <div class="power-bar-label">
+              <span style="color:var(--soul-light)">Soul Power</span>
+              <span id="soul-val-disp" style="color:var(--text-dim)">0</span>
+            </div>
+            <div class="power-bar-track"><div class="power-bar-fill soul" id="soul-bar" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel admin-only">
+      <div class="panel-title">✦ <span data-i18n="panel_identity">Identity</span></div>
+      <div class="form-row">
+        <div class="form-field">
+          <label data-i18n="lbl_charname">Character Name</label>
+          <input type="text" id="char-name" placeholder="Enter name..." oninput="saveChar()">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div style="background:rgba(6,182,212,0.04);border:1px solid rgba(6,182,212,0.2);border-radius:8px;padding:14px;">
+          <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--qi-light);text-transform:uppercase;margin-bottom:10px;">⚡ <span data-i18n="lbl_qi_cult">Qi Cultivation</span></div>
+          <div class="form-field" style="margin-bottom:10px;">
+            <label data-i18n="lbl_stage">Stage</label>
+            <select id="qi-stage" onchange="saveChar(); updateCultDisplay()">
+              <option>Mortal</option><option>Beginner</option><option>Veteran</option>
+              <option>Master</option><option>Expert</option><option>Sage</option>
+              <option>Lord</option><option>Monarch</option><option>Immortal</option>
+              <option>Saint</option><option>Earth God</option><option>Sky God</option>
+              <option>Dao Completion</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom:10px;">
+            <label data-i18n="lbl_sublevel">Sub-Level</label>
+            <select id="qi-sublevel" onchange="saveChar(); updateCultDisplay()">
+              <option>Early</option><option>Mid</option><option>Late</option><option>Peak</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label data-i18n="lbl_qipower">Qi Power</label>
+            <input type="number" id="char-qi" min="0" max="10000" value="100" oninput="saveChar(); updateCultDisplay()">
+          </div>
+        </div>
+        <div style="background:rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:14px;">
+          <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--soul-light);text-transform:uppercase;margin-bottom:10px;">💜 <span data-i18n="lbl_soul_cult">Soul Cultivation</span></div>
+          <div class="form-field" style="margin-bottom:10px;">
+            <label data-i18n="lbl_stage">Stage</label>
+            <select id="soul-stage" onchange="saveChar(); updateCultDisplay()">
+              <option>Mortal</option><option>Beginner</option><option>Veteran</option>
+              <option>Master</option><option>Expert</option><option>Sage</option>
+              <option>Lord</option><option>Monarch</option><option>Immortal</option>
+              <option>Saint</option><option>Earth God</option><option>Sky God</option>
+              <option>Dao Completion</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom:10px;">
+            <label data-i18n="lbl_sublevel">Sub-Level</label>
+            <select id="soul-sublevel" onchange="saveChar(); updateCultDisplay()">
+              <option>Early</option><option>Mid</option><option>Late</option><option>Peak</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label data-i18n="lbl_soulpower">Soul Power</label>
+            <input type="number" id="char-soul" min="0" max="10000" value="100" oninput="saveChar(); updateCultDisplay()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel admin-only">
+      <div class="panel-title">⚙ <span data-i18n="panel_corestats">Core Stats (Base Values)</span></div>
+      <p style="font-size:0.8rem;color:var(--text-dim);font-style:italic;margin-bottom:12px;">Base values — Qi Strength, Qi Defense, Soul Strength &amp; Soul Defense are derived in the Stats tab.</p>
+      <div class="form-row" style="gap:12px;">
+        <div class="form-field"><label data-i18n="lbl_str">Strength</label><input type="number" id="core-str" value="10" min="1" oninput="saveChar(); recalcStats()"></div>
+        <div class="form-field"><label data-i18n="lbl_agi">Agility</label><input type="number" id="core-agi" value="10" min="1" oninput="saveChar(); recalcStats()"></div>
+      </div>
+      <div class="form-row" style="gap:12px;">
+        <div class="form-field"><label data-i18n="lbl_end">Endurance</label><input type="number" id="core-end" value="10" min="1" oninput="saveChar(); recalcStats()"></div>
+        <div class="form-field"><label data-i18n="lbl_int">Intelligence</label><input type="number" id="core-int" value="10" min="1" oninput="saveChar(); recalcStats()"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">🔮 <span data-i18n="panel_equipment">Equipment Slots</span></div>
+      <div class="equip-grid" id="equip-grid">
+        <div class="equip-slot" data-slot="weapon" onclick="openEquipSlot('weapon')">
+          <span class="equip-slot-icon">⚔️</span>
+          <span>Weapon</span>
+        </div>
+        <div class="equip-slot" data-slot="armor" onclick="openEquipSlot('armor')">
+          <span class="equip-slot-icon">🛡️</span>
+          <span>Armor</span>
+        </div>
+        <div class="equip-slot" data-slot="soul" onclick="openEquipSlot('soul')">
+          <span class="equip-slot-icon">💜</span>
+          <span>Soul</span>
+        </div>
+        <div class="equip-slot" data-slot="flame" onclick="openEquipSlot('flame')">
+          <span class="equip-slot-icon">🔥</span>
+          <span>Flame</span>
+        </div>
+        <div class="equip-slot" data-slot="core" onclick="openEquipSlot('core')">
+          <span class="equip-slot-icon">⚡</span>
+          <span>Core</span>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- end overview sub-panel -->
+
+    <!-- Dao sub-panel -->
+    <div class="char-sub-panel" id="char-sub-dao">
+      <div class="panel">
+        <div class="panel-title">∞ Dao Comprehension</div>
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:16px;line-height:1.5;font-style:italic;">
+          Each Dao has 10 levels of comprehension. Master all 10 elemental Daos to unlock the Grand Dao — the Dao of Everything.
+        </p>
+        <div id="dao-list"></div>
+      </div>
+
+      <!-- Grand Dao -->
+      <div class="grand-dao-panel grand-dao-locked" id="grand-dao-panel">
+        <div class="grand-dao-title">∞ The Dao</div>
+        <div class="grand-dao-subtitle" id="grand-dao-status">Master all 10 Daos at level 10 to unlock this.</div>
+        <div id="grand-dao-content" style="display:none;">
+          <div style="font-size:0.88rem;color:var(--text-dim);margin-bottom:14px;">
+            The Dao of Everything. Beyond comprehension, beyond technique — pure existence.
+          </div>
+          <div class="dao-pips" id="grand-dao-pips"></div>
+          <div style="font-family:'Cinzel',serif;font-size:0.75rem;color:var(--gold);margin-bottom:12px;" id="grand-dao-level-disp">Level 0 / 10</div>
+          <div class="dao-btn-row" style="justify-content:center;">
+            <button class="dao-btn dao-btn-up" onclick="adjustGrandDao(1)" class="admin-only">+ Comprehend</button>
+            <button class="dao-btn dao-btn-down admin-only" onclick="adjustGrandDao(-1)" class="admin-only">−</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Dao section (unlocked at Grand Dao level 10) -->
+      <div id="custom-dao-section" style="display:none;">
+        <div class="panel">
+          <div class="panel-title">✦ Your Own Dao</div>
+          <p style="font-size:0.82rem;color:var(--jade);margin-bottom:14px;font-style:italic;">
+            You have transcended all known Daos. Create the Dao that only you can comprehend.
+          </p>
+          <div id="custom-dao-list" style="margin-bottom:14px;"></div>
+          <div class="btn-row">
+            <button class="btn admin-only" onclick="openCreateCustomDao()">✦ Create Your Dao</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end dao sub-panel -->
+
+  </div>
+
+  <!-- ===================== STATS TAB ===================== -->
+  <div class="tab-panel" id="tab-stats">
+    <div class="panel">
+      <div class="panel-title">📊 <span data-i18n="panel_compstats">Computed Stats</span></div>
+      <div id="stats-display">
+        <!-- populated by JS -->
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">⚙ <span data-i18n="panel_equipbonus">Equipment Bonuses</span></div>
+      <div id="equip-bonus-list" style="font-size:0.88rem;color:var(--text-dim);">
+        <div class="empty-state">No equipment equipped.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== MAP TAB ===================== -->
+  <div class="tab-panel" id="tab-map">
+    <div class="panel">
+      <div class="panel-title">🗺 <span data-i18n="panel_map">Map</span></div>
+      <div class="map-controls">
+        <label for="map-upload" class="btn" style="cursor:pointer;">📁 <span data-i18n="btn_uploadmap">Upload Map</span></label>
+        <input type="file" id="map-upload" accept="image/*" style="display:none" onchange="handleMapUpload(event)">
+        <button class="btn" onclick="openMapSwitcher()"><span data-i18n="btn_switchmap">🔄 Switch Map</span></button>
+        <button class="btn" id="pin-mode-btn" onclick="togglePinMode()"><span data-i18n="btn_addpin">📍 Add Pin</span></button>
+        <button class="btn" onclick="exportMap()"><span data-i18n="btn_export">⬇ Export</span></button>
+        <button class="btn" onclick="importMapData()"><span data-i18n="btn_import">⬆ Import</span></button>
+        <input type="file" id="map-import-input" accept=".json" style="display:none" onchange="handleMapImport(event)">
+      </div>
+      <div id="map-container">
+        <div id="map-canvas-wrap">
+          <img id="map-img" src="" alt="" style="display:none">
+          <div id="map-no-img" class="no-map-msg">No map uploaded. Click <strong>Upload Map</strong> to begin.</div>
+          <svg id="map-svg-overlay"></svg>
+        </div>
+      </div>
+      <div id="map-notes-list"></div>
+    </div>
+  </div>
+
+  <!-- ===================== COMBAT TAB ===================== -->
+  <div class="tab-panel" id="tab-combat">
+    <div class="panel">
+      <div class="panel-title">⚔ <span data-i18n="panel_combat">Combat Skills</span></div>
+      <div class="btn-row">
+        <button class="btn btn-soul admin-only" onclick="openSearchModal('skill','combat')"><span data-i18n="btn_searchskills">🔍 Search Skills</span></button>
+        <button class="btn admin-only" onclick="openAddCustomSkill('combat')"><span data-i18n="btn_addcustskill">＋ Add Custom Skill</span></button>
+      </div>
+      <div id="combat-skills-list" style="margin-top:14px;">
+        <div class="empty-state">No combat skills learned yet.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">🌿 <span data-i18n="panel_culttechs">Cultivation Techniques</span></div>
+      <div class="btn-row">
+        <button class="btn btn-qi admin-only" onclick="openSearchModal('skill','cultivation')"><span data-i18n="btn_searchtechs">🔍 Search Techniques</span></button>
+        <button class="btn admin-only" onclick="openAddCustomSkill('cultivation')"><span data-i18n="btn_addcustom">＋ Add Custom</span></button>
+      </div>
+      <div id="cult-skills-list" style="margin-top:14px;">
+        <div class="empty-state">No cultivation techniques learned yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== INVENTORY TAB ===================== -->
+  <div class="tab-panel" id="tab-inventory">
+    <div class="sub-tabs">
+      <button class="sub-tab-btn active" onclick="switchSubTab('items',this)">📦 <span data-i18n="subtab_items">Items</span></button>
+      <button class="sub-tab-btn" onclick="switchSubTab('companions',this)">🐉 <span data-i18n="subtab_companions">Companions</span></button>
+    </div>
+
+    <div id="subtab-items">
+      <div class="panel">
+        <div class="panel-title">📦 <span data-i18n="panel_inventory">Inventory</span></div>
+        <div class="btn-row">
+          <button class="btn admin-only" onclick="openSearchModal('item','')"><span data-i18n="btn_searchitems">🔍 Search Items</span></button>
+          <button class="btn admin-only" onclick="openAddCustomItem()"><span data-i18n="btn_addcustitem">＋ Add Custom Item</span></button>
+          <button class="btn admin-only" onclick="exportItems()">⬇ <span data-i18n="btn_exportitems">Export Items</span></button>
+          <button class="btn admin-only" onclick="importItems()">⬆ <span data-i18n="btn_importitems">Import Items</span></button>
+        </div>
+        <div id="items-list" style="margin-top:14px;">
+          <div class="empty-state">Your inventory is empty.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-companions" style="display:none">
+      <div class="panel">
+        <div class="panel-title">🐉 <span data-i18n="panel_companions">Spirit Companions</span></div>
+        <div class="btn-row">
+          <button class="btn btn-soul admin-only" onclick="openSearchModal('companion','')"><span data-i18n="btn_searchcomp">🔍 Search Companions</span></button>
+          <button class="btn" onclick="openAddCustomCompanion()"><span data-i18n="btn_addcustom">＋ Add Custom</span></button>
+        </div>
+        <div id="companions-list" style="margin-top:14px;">
+          <div class="empty-state">No companions bound yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== LORE TAB ===================== -->
+  <div class="tab-panel" id="tab-lore">
+
+    <!-- Search + filter bar -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+      <input type="text" id="lore-search" placeholder="Search plaques…"
+        style="flex:1;min-width:160px;" oninput="filterPlaques()">
+      <select id="lore-category-filter" onchange="filterPlaques()"
+        style="width:auto;min-width:140px;">
+        <option value="">All Categories</option>
+        <option>Power</option>
+        <option>Person</option>
+        <option>Faction</option>
+        <option>Location</option>
+        <option>Beast</option>
+        <option>Artifact</option>
+        <option>Event</option>
+      </select>
+    </div>
+
+    <!-- Plaque grid -->
+    <div id="lore-grid" style="
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+      gap:14px;">
+      <div style="text-align:center;padding:60px 20px;color:var(--text-dim);
+        font-style:italic;grid-column:1/-1;">Loading plaques…</div>
+    </div>
+
+  </div>
+
+
+  <!-- ===================== SHOP TAB ===================== -->
+  <div class="tab-panel" id="tab-shop">
+    <div class="panel">
+      <div class="panel-title">🏪 Ingredient Shop</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:0.9rem;">💰</span>
+          <span style="font-family:'Cinzel',serif;font-size:0.9rem;color:var(--gold);" id="shop-gold-display">0 Gold</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" id="shop-search" placeholder="Search ingredients…" style="width:180px;" oninput="filterShop()">
+          <select id="shop-cat-filter" onchange="filterShop()" style="width:auto;">
+            <option value="">All Types</option>
+            <option>Herb</option><option>Mineral</option><option>Beast Core</option>
+            <option>Flame Essence</option><option>Spirit Water</option><option>Void Crystal</option>
+          </select>
+          <select id="shop-rarity-filter" onchange="filterShop()" style="width:auto;">
+            <option value="">All Rarities</option>
+            <option>Common</option><option>Uncommon</option><option>Rare</option>
+            <option>Epic</option><option>Legendary</option>
+          </select>
+        </div>
+      </div>
+      <div id="shop-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"></div>
+    </div>
+  </div>
+
+  <!-- ===================== ALCHEMY TAB ===================== -->
+  <div class="tab-panel" id="tab-alchemy">
+    <div class="panel">
+      <div class="panel-title">⚗ Alchemy — Ingredient Pouch</div>
+      <div id="ingredient-pouch" style="display:flex;flex-wrap:wrap;gap:6px;min-height:48px;"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">⚗ Pill Recipes</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <input type="text" id="recipe-search" placeholder="Search recipes…" style="flex:1;min-width:140px;" oninput="filterRecipes()">
+        <select id="recipe-rarity-filter" onchange="filterRecipes()" style="width:auto;">
+          <option value="">All Rarities</option>
+          <option>Common</option><option>Uncommon</option><option>Rare</option>
+          <option>Epic</option><option>Legendary</option><option>Mythic</option>
+        </select>
+      </div>
+      <div id="recipe-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
+    </div>
+  </div>
+
+</div><!-- #main-content -->
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Add Character Modal -->
+<div class="modal-bg" id="modal-add-char">
+  <div class="modal">
+    <div class="modal-title">Create Character</div>
+    
+    <div class="form-field" style="margin-bottom:14px;">
+      <label>Character Name</label>
+      <input type="text" id="new-char-name" placeholder="Enter name...">
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="createCharacter()">Create</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-add-char')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Search Modal -->
+<div class="modal-bg" id="modal-search">
+  <div class="modal">
+    <div class="modal-title" id="search-modal-title">Search</div>
+    
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Search by name, type, rank..." oninput="runSearch()">
+    </div>
+    <div id="search-results"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-danger" onclick="closeModal('modal-search')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Equipment Search Modal -->
+<div class="modal-bg" id="modal-equip-search">
+  <div class="modal">
+    <div class="modal-title" id="equip-modal-title">Equip Item</div>
+    
+    <div class="search-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="equip-search-input" placeholder="Search items..." oninput="runEquipSearch()">
+    </div>
+    <div id="equip-search-results"></div>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="btn btn-danger" onclick="unequipSlot()">🗑 Unequip</button>
+      <button class="btn" onclick="closeModal('modal-equip-search')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Map Switcher Modal -->
+<div class="modal-bg" id="modal-map-switcher">
+  <div class="modal">
+    <div class="modal-title">Saved Maps</div>
+    
+    <div id="map-switcher-list"></div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-danger" onclick="closeModal('modal-map-switcher')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pin Note Modal -->
+<div class="modal-bg" id="modal-pin">
+  <div class="modal">
+    <div class="modal-title">Map Marker</div>
+    
+    <div class="form-field" style="margin-bottom:12px;">
+      <label>Marker Title</label>
+      <input type="text" id="pin-title" placeholder="Location name...">
+    </div>
+    <div class="form-field" style="margin-bottom:14px;">
+      <label>Notes</label>
+      <textarea id="pin-note" rows="4" placeholder="Describe this location..."></textarea>
+    </div>
+    <div class="form-field" style="margin-bottom:14px;">
+      <label>Color</label>
+      <select id="pin-color">
+        <option value="#c9a84c">Gold</option>
+        <option value="#ef4444">Red</option>
+        <option value="#06b6d4">Cyan</option>
+        <option value="#8b5cf6">Purple</option>
+        <option value="#10b981">Green</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="savePin()">Save Marker</button>
+      <button class="btn btn-danger" id="delete-pin-btn" onclick="deletePin()" style="display:none">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-pin')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Skill Modal -->
+<div class="modal-bg" id="modal-custom-skill">
+  <div class="modal">
+    <div class="modal-title">Add Custom Skill</div>
+    
+    <div class="form-row">
+      <div class="form-field"><label>Name</label><input type="text" id="csk-name" placeholder="Skill name..."></div>
+      <div class="form-field"><label>Type</label>
+        <select id="csk-type">
+          <option>Qi Skill</option><option>Soul Skill</option><option>Cultivation Technique</option><option>Mythic Art</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Rank</label>
+        <select id="csk-rank"><option>D</option><option>C</option><option>B</option><option>A</option><option>S</option><option>SS</option></select>
+      </div>
+      <div class="form-field"><label>Rarity</label>
+        <select id="csk-rarity"><option>Common</option><option>Rare</option><option>Legendary</option><option>Mythic</option><option>Immortal</option></select>
+      </div>
+    </div>
+    <div class="form-field" style="margin-bottom:12px;"><label>Description</label><textarea id="csk-desc" rows="3" placeholder="Describe the skill..."></textarea></div>
+    <div class="form-field" style="margin-bottom:14px;"><label>Effect</label><textarea id="csk-effect" rows="2" placeholder="Game effect..."></textarea></div>
+    <div class="btn-row">
+      <button class="btn" onclick="saveCustomSkill()">Add Skill</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-custom-skill')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Item Modal -->
+<div class="modal-bg" id="modal-custom-item">
+  <div class="modal">
+    <div class="modal-title">Add Custom Item</div>
+    
+    <div class="form-row">
+      <div class="form-field"><label>Name</label><input type="text" id="citm-name" placeholder="Item name..."></div>
+      <div class="form-field"><label>Type</label>
+        <select id="citm-type">
+          <option>Weapon</option><option>Armor</option><option>Flame</option>
+          <option>Soul</option><option>Core</option>
+          <option>Artifact</option><option>Utility Item</option><option>Cultivation Pill</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Rank</label>
+        <select id="citm-rank"><option>D</option><option>C</option><option>B</option><option>A</option><option>S</option><option>Growth</option></select>
+      </div>
+      <div class="form-field"><label>Energy</label>
+        <select id="citm-energy"><option>Qi</option><option>Soul</option><option>Mixed</option><option>Fire / Soul</option><option>Void</option><option>None</option></select>
+      </div>
+    </div>
+    <div class="form-row-3" style="margin-bottom:12px;">
+      <div class="form-field"><label>ATK bonus</label><input type="number" id="citm-b-attack" value="0"></div>
+      <div class="form-field"><label>DEF bonus</label><input type="number" id="citm-b-defense" value="0"></div>
+      <div class="form-field"><label>STR bonus</label><input type="number" id="citm-b-strength" value="0"></div>
+      <div class="form-field"><label>AGI bonus</label><input type="number" id="citm-b-agility" value="0"></div>
+      <div class="form-field"><label>END bonus</label><input type="number" id="citm-b-endurance" value="0"></div>
+      <div class="form-field"><label>INT bonus</label><input type="number" id="citm-b-intelligence" value="0"></div>
+    </div>
+    <!-- Image upload -->
+    <div class="form-field" style="margin-bottom:14px;">
+      <label>Item Image (optional)</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <label for="citm-img-upload" class="btn" style="cursor:pointer;margin:0;">📷 Upload Image</label>
+        <input type="file" id="citm-img-upload" accept="image/*" style="display:none" onchange="previewCustomItemImg(event)">
+        <button class="btn btn-danger" onclick="clearCustomItemImg()">Clear</button>
+      </div>
+      <div id="citm-img-preview" style="margin-top:8px;display:none;">
+        <img id="citm-img-thumb" src="" style="max-height:80px;border-radius:6px;border:1px solid var(--border);">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="saveCustomItem()">Add Item</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-custom-item')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Settings Modal -->
+<div class="modal-bg" id="modal-settings">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-title">⚙ Settings</div>
+    
+
+    <!-- Appearance -->
+    <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.15em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:12px;">Appearance</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:0.82rem;color:var(--text);">Light Mode</div>
+        <div style="font-size:0.78rem;color:var(--text-dim);margin-top:2px;">Switch to a brighter parchment theme</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="setting-light-mode" onchange="applySettings()">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <!-- Character Export/Import -->
+    <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.15em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:12px;">Character Data</div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;">
+      <div style="font-family:'Cinzel',serif;font-size:0.82rem;color:var(--text);margin-bottom:8px;">Export or import your full character save</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="exportCharacter();closeModal('modal-settings')" style="flex:1;">⬇ Export Character</button>
+        <button class="btn btn-soul" onclick="importCharacter();closeModal('modal-settings')" style="flex:1;">⬆ Import Character</button>
+      </div>
+    </div>
+
+    <!-- Language -->
+    <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.15em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:12px;">Language</div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;">
+      <div style="font-family:'Cinzel',serif;font-size:0.82rem;color:var(--text);margin-bottom:8px;">Skill &amp; Companion Descriptions</div>
+      <div style="display:flex;gap:8px;">
+        <button id="lang-en-btn" class="btn" onclick="setLanguage('en')" style="flex:1;">🇬🇧 English</button>
+        <button id="lang-de-btn" class="btn" onclick="setLanguage('de')" style="flex:1;opacity:0.5;">🇩🇪 Deutsch</button>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:4px;">
+      <button class="btn" onclick="closeModal('modal-settings')">Done</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Delete Character Modal -->
+<div class="modal-bg" id="modal-delete-char">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title" style="color:#f87171;">⚠ Delete Character</div>
+    
+    <p style="font-size:0.95rem;color:var(--text);margin-bottom:6px;">Are you sure you want to delete</p>
+    <p style="font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);margin-bottom:16px;" id="delete-char-name"></p>
+    <p style="font-size:0.85rem;color:var(--text-dim);margin-bottom:20px;">This will permanently remove all data for this character including stats, skills, inventory, and maps.</p>
+    <div class="btn-row">
+      <button class="btn btn-danger" onclick="deleteCharacter()" style="flex:1;">🗑 Delete Forever</button>
+      <button class="btn" onclick="closeModal('modal-delete-char')" style="flex:1;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden file inputs for export/import -->
+<input type="file" id="import-items-input" accept=".json" style="display:none" onchange="handleItemsImport(event)">
+<input type="file" id="import-char-input"  accept=".json" style="display:none" onchange="handleCharImport(event)">
+
+<!-- Create Custom Dao Modal -->
+<div class="modal-bg" id="modal-custom-dao">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title" style="color:var(--gold);">✦ Create Your Dao</div>
+    <div class="form-field" style="margin-bottom:12px;">
+      <label>Dao Name</label>
+      <input type="text" id="custom-dao-name" placeholder="The Dao of ...">
+    </div>
+    <div class="form-field" style="margin-bottom:14px;">
+      <label>Description</label>
+      <textarea id="custom-dao-desc" rows="3" placeholder="Describe the nature of your Dao..."></textarea>
+    </div>
+    <div class="form-field" style="margin-bottom:14px;">
+      <label>Dao Color (accent)</label>
+      <select id="custom-dao-color">
+        <option value="#c9a84c">Gold</option>
+        <option value="#06b6d4">Cyan</option>
+        <option value="#8b5cf6">Purple</option>
+        <option value="#10b981">Jade</option>
+        <option value="#ef4444">Crimson</option>
+        <option value="#f97316">Orange</option>
+        <option value="#e0f2fe">Ice White</option>
+        <option value="#ff6b6b">Chaos Red</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="saveCustomDao()">✦ Forge This Dao</button>
+      <button class="btn btn-danger" onclick="closeModal('modal-custom-dao')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Login Overlay -->
+<div id="login-overlay" style="
+  position:fixed;inset:0;background:var(--ink);z-index:10000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:24px;">
+  <div style="font-family:'Cinzel Decorative',serif;font-size:1.4rem;color:var(--gold);
+    text-shadow:0 0 30px rgba(201,168,76,0.5);margin-bottom:8px;">⚡ Dao Chronicle</div>
+  <div style="background:var(--panel);border:1px solid var(--border-bright);border-radius:10px;
+    padding:28px;width:100%;max-width:360px;position:relative;">
+    <div style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;
+      color:var(--gold-dim);text-transform:uppercase;margin-bottom:18px;text-align:center;">
+      Enter the Dao</div>
+    <div style="margin-bottom:12px;">
+      <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+        color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Email</label>
+      <input type="email" id="login-email" placeholder="your@email.com"
+        style="width:100%;" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div style="margin-bottom:18px;">
+      <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+        color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••"
+        style="width:100%;" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button onclick="doLogin()" id="login-submit-btn" style="width:100%;padding:10px;
+      background:rgba(201,168,76,0.12);border:1px solid var(--border-bright);
+      color:var(--gold);font-family:'Cinzel',serif;font-size:0.75rem;
+      letter-spacing:0.12em;text-transform:uppercase;border-radius:6px;cursor:pointer;
+      transition:all 0.2s;" onmouseover="this.style.background='rgba(201,168,76,0.25)'"
+      onmouseout="this.style.background='rgba(201,168,76,0.12)'">
+      Enter
+    </button>
+    <div id="login-error" style="color:#f87171;font-size:0.8rem;text-align:center;
+      margin-top:10px;display:none;font-family:'Crimson Pro',serif;"></div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loading-overlay" style="
+  position:fixed;inset:0;background:var(--ink);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div style="font-family:'Cinzel Decorative',serif;font-size:1.4rem;color:var(--gold);
+    text-shadow:0 0 30px rgba(201,168,76,0.5);">⚡ Dao Chronicle</div>
+  <div style="width:160px;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+    <div id="loading-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--qi),var(--gold));
+      border-radius:2px;transition:width 0.4s ease;"></div>
+  </div>
+  <div id="loading-msg" style="font-family:'Cinzel',serif;font-size:0.65rem;
+    letter-spacing:0.2em;color:var(--text-dim);text-transform:uppercase;">Awakening the Dao…</div>
+</div>
+
+<!-- Plaque Detail Modal -->
+<div class="modal-bg" id="modal-plaque">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-title" id="plaque-modal-name" style="color:var(--gold);font-size:1rem;"></div>
+    <div id="plaque-modal-img-wrap"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;" id="plaque-modal-badges"></div>
+    <div style="font-size:0.88rem;color:var(--text);margin-bottom:8px;" id="plaque-modal-desc"></div>
+    <div class="plaque-lore" id="plaque-modal-lore"></div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-danger" onclick="closeModal('modal-plaque')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
