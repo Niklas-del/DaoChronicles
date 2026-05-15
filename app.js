@@ -1612,6 +1612,21 @@ function advanceCultivation(c, track, points) {
   return levelled;
 }
 
+// Pill definitions — name → { track, powerGain, pillPts }
+// powerGain goes directly to qi_power or soul_power
+// pillPts advances sublevel/stage (10 pts = 1 sublevel)
+const PILL_DEFINITIONS = {
+  'Mind Cultivation Pill':    { track: 'soul', powerGain: 200, pillPts: 2 },
+  'Qi Boosting Pill':         { track: 'qi',   powerGain: 200, pillPts: 2 },
+  'Body Refinement Pill':     { track: 'qi',   powerGain: 150, pillPts: 3 },
+  'Soul Clarity Pill':        { track: 'soul', powerGain: 350, pillPts: 4 },
+  'Crimson Flame Burst Pill': { track: 'qi',   powerGain: 400, pillPts: 4 },
+  'Glacial Soul Pill':        { track: 'soul', powerGain: 350, pillPts: 4 },
+  'Bodhi Insight Core':       { track: 'soul', powerGain: 300, pillPts: 5 },
+  'Phoenix Fire Essence Dan': { track: 'qi',   powerGain: 600, pillPts: 8 },
+  'Void Transcendence Pill':  { track: 'both', powerGain: 400, pillPts: 12 },
+};
+
 // Called when a pill is consumed from inventory
 function consumePill(itemName) {
   const c = getChar(); if (!c) return;
@@ -1619,30 +1634,32 @@ function consumePill(itemName) {
   const idx = c.items.findIndex(i => i.name === itemName && i.type === 'Cultivation Pill');
   if (idx < 0) return;
   const pill = c.items[idx];
-  const pts   = pill.pillPoints  || 1;
-  const track = pill.pillTrack   || 'qi';
+
+  // Look up pill definition — check PILL_DEFINITIONS first, then item catalog, then defaults
+  const def      = PILL_DEFINITIONS[itemName] || {};
+  const catalog  = ITEMS_DATA.find(i => i.name === itemName) || {};
+  const track     = def.track      || catalog.pill_track  || pill.pillTrack  || 'qi';
+  const pillPts   = def.pillPts    || catalog.pill_points || pill.pillPoints  || 1;
+  const powerGain = def.powerGain  || (pillPts * 50);
 
   // Remove exactly ONE from inventory — respect _qty for stacked items
   const currentQty = pill._qty || 1;
   if (currentQty > 1) {
-    // Decrement stack by 1 — keep the item object, just reduce qty
     c.items[idx] = { ...pill, _qty: currentQty - 1 };
   } else {
-    // Last one — remove entirely
     c.items.splice(idx, 1);
   }
 
-  // Apply cultivation advancement — exactly 1 pill worth of points
+  // Apply cultivation pill points (advances sublevel/stage)
   let levelled = false;
   if (track === 'both') {
-    levelled = advanceCultivation(c, 'qi',   pts) || levelled;
-    levelled = advanceCultivation(c, 'soul', pts) || levelled;
+    levelled = advanceCultivation(c, 'qi',   pillPts) || levelled;
+    levelled = advanceCultivation(c, 'soul', pillPts) || levelled;
   } else {
-    levelled = advanceCultivation(c, track, pts);
+    levelled = advanceCultivation(c, track, pillPts);
   }
 
-  // Boost Qi/Soul power — each pill point adds 50 power
-  const powerGain = pts * 50;
+  // Apply power gain directly to qi_power or soul_power
   if (track === 'qi' || track === 'both') {
     c.qi = Math.min(10000, (c.qi || 0) + powerGain);
     syncQiInput(c);
