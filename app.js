@@ -847,9 +847,14 @@ function renderItemList(items) {
       ${abilitiesHtml}
       ${it.effect ? `<div style="font-size:0.8rem;color:var(--jade);font-style:italic;margin-top:4px;">↳ ${it.effect}</div>` : ''}
       ${it.type === 'Cultivation Pill' ? `
-        <div style="margin-top:10px;">
-          <button onclick="consumePill('${it.name.replace(/'/g,"\\'")}');event.stopPropagation();"
-            style="width:100%;padding:6px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:6px;color:var(--soul-light);font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;"
+        <div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+          <input type="number"
+            id="pqty_${it.name.replace(/[^a-zA-Z0-9]/g,'_')}"
+            value="1" min="1" max="${displayQty}"
+            onclick="event.stopPropagation()"
+            style="width:54px;padding:5px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:6px;color:var(--soul-light);font-family:'Cinzel',serif;font-size:0.78rem;text-align:center;outline:none;">
+          <button onclick="consumePillQty('${it.name.replace(/'/g,\"\\'\")}','${it.name.replace(/[^a-zA-Z0-9]/g,'_')}');event.stopPropagation();"
+            style="flex:1;padding:6px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:6px;color:var(--soul-light);font-family:'Cinzel',serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;"
             onmouseover="this.style.background='rgba(139,92,246,0.22)'" onmouseout="this.style.background='rgba(139,92,246,0.1)'">
             ${t('consume_pill')}
           </button>
@@ -1614,10 +1619,17 @@ function consumePill(itemName) {
   const pts   = pill.pillPoints  || 1;
   const track = pill.pillTrack   || 'qi';
 
-  // Remove one from inventory
-  c.items.splice(idx, 1);
+  // Remove exactly ONE from inventory — respect _qty for stacked items
+  const currentQty = pill._qty || 1;
+  if (currentQty > 1) {
+    // Decrement stack by 1 — keep the item object, just reduce qty
+    c.items[idx] = { ...pill, _qty: currentQty - 1 };
+  } else {
+    // Last one — remove entirely
+    c.items.splice(idx, 1);
+  }
 
-  // Apply cultivation advancement points
+  // Apply cultivation advancement — exactly 1 pill worth of points
   let levelled = false;
   if (track === 'both') {
     levelled = advanceCultivation(c, 'qi',   pts) || levelled;
@@ -1626,7 +1638,7 @@ function consumePill(itemName) {
     levelled = advanceCultivation(c, track, pts);
   }
 
-  // Also boost Qi/Soul power — each pill point adds power proportional to rank
+  // Boost Qi/Soul power — each pill point adds 50 power
   const powerGain = pts * 50;
   if (track === 'qi' || track === 'both') {
     c.qi = Math.min(10000, (c.qi || 0) + powerGain);
@@ -1672,6 +1684,19 @@ function consumePill(itemName) {
         }
       }
     });
+  }
+}
+
+// Consume multiple pills at once — called from qty input + button
+function consumePillQty(itemName, inputId) {
+  const qtyEl = document.getElementById('pqty_' + inputId);
+  const qty = Math.max(1, parseInt(qtyEl?.value) || 1);
+  for (let i = 0; i < qty; i++) {
+    const c = getChar();
+    if (!c) break;
+    const idx = c.items.findIndex(it => it.name === itemName && it.type === 'Cultivation Pill');
+    if (idx < 0) break; // ran out of pills
+    consumePill(itemName);
   }
 }
 
