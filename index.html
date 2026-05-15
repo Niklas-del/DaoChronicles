@@ -691,36 +691,86 @@
 <div id="login-overlay" style="
   position:fixed;inset:0;background:var(--ink);z-index:10000;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
-  padding:24px;">
+  padding:24px;overflow-y:auto;">
   <div style="font-family:'Cinzel Decorative',serif;font-size:1.4rem;color:var(--gold);
-    text-shadow:0 0 30px rgba(201,168,76,0.5);margin-bottom:8px;">⚡ Dao Chronicle</div>
+    text-shadow:0 0 30px rgba(201,168,76,0.5);margin-bottom:4px;">⚡ Dao Chronicle</div>
+  <div style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.25em;
+    color:var(--gold-dim);text-transform:uppercase;margin-bottom:4px;">Cultivation Chronicle</div>
+
   <div style="background:var(--panel);border:1px solid var(--border-bright);border-radius:10px;
-    padding:28px;width:100%;max-width:360px;position:relative;">
-    <div style="font-family:'Cinzel',serif;font-size:0.75rem;letter-spacing:0.15em;
-      color:var(--gold-dim);text-transform:uppercase;margin-bottom:18px;text-align:center;">
-      Enter the Dao</div>
-    <div style="margin-bottom:12px;">
-      <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
-        color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Email</label>
-      <input type="email" id="login-email" placeholder="your@email.com"
-        style="width:100%;" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
+    width:100%;max-width:380px;position:relative;overflow:hidden;">
+
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--border);">
+      <button id="auth-tab-login" onclick="switchAuthTab('login')" style="flex:1;padding:12px;
+        font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;
+        background:rgba(201,168,76,0.08);border:none;border-bottom:2px solid var(--gold);
+        color:var(--gold);cursor:pointer;transition:all 0.2s;">Login</button>
+      <button id="auth-tab-register" onclick="switchAuthTab('register')" style="flex:1;padding:12px;
+        font-family:'Cinzel',serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;
+        background:transparent;border:none;border-bottom:2px solid transparent;
+        color:var(--text-dim);cursor:pointer;transition:all 0.2s;">Register</button>
     </div>
-    <div style="margin-bottom:18px;">
-      <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
-        color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Password</label>
-      <input type="password" id="login-password" placeholder="••••••••"
-        style="width:100%;" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+
+    <!-- Login Panel -->
+    <div id="auth-panel-login" style="padding:24px;">
+      <div style="margin-bottom:12px;">
+        <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+          color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Email</label>
+        <input type="email" id="login-email" placeholder="your@email.com"
+          style="width:100%;" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+          color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••"
+          style="width:100%;" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button onclick="doLogin()" id="login-submit-btn" style="width:100%;padding:10px;
+        background:rgba(201,168,76,0.12);border:1px solid var(--border-bright);
+        color:var(--gold);font-family:'Cinzel',serif;font-size:0.75rem;
+        letter-spacing:0.12em;text-transform:uppercase;border-radius:6px;cursor:pointer;transition:all 0.2s;"
+        onmouseover="this.style.background='rgba(201,168,76,0.25)'"
+        onmouseout="this.style.background='rgba(201,168,76,0.12)'">
+        Enter the Chronicle
+      </button>
+      <div id="login-error" style="color:#f87171;font-size:0.8rem;text-align:center;
+        margin-top:10px;display:none;font-family:'Crimson Pro',serif;"></div>
     </div>
-    <button onclick="doLogin()" id="login-submit-btn" style="width:100%;padding:10px;
-      background:rgba(201,168,76,0.12);border:1px solid var(--border-bright);
-      color:var(--gold);font-family:'Cinzel',serif;font-size:0.75rem;
-      letter-spacing:0.12em;text-transform:uppercase;border-radius:6px;cursor:pointer;
-      transition:all 0.2s;" onmouseover="this.style.background='rgba(201,168,76,0.25)'"
-      onmouseout="this.style.background='rgba(201,168,76,0.12)'">
-      Enter
-    </button>
-    <div id="login-error" style="color:#f87171;font-size:0.8rem;text-align:center;
-      margin-top:10px;display:none;font-family:'Crimson Pro',serif;"></div>
+
+    <!-- Register Panel -->
+    <div id="auth-panel-register" style="padding:24px;display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+          color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Username</label>
+        <input type="text" id="reg-username" placeholder="Your cultivator name" style="width:100%;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+          color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Email</label>
+        <input type="email" id="reg-email" placeholder="your@email.com" style="width:100%;"
+          onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+      <div style="margin-bottom:18px;">
+        <label style="font-family:'Cinzel',serif;font-size:0.62rem;letter-spacing:0.1em;
+          color:var(--text-dim);text-transform:uppercase;display:block;margin-bottom:4px;">Password (min 8 chars)</label>
+        <input type="password" id="reg-password" placeholder="••••••••" style="width:100%;"
+          onkeydown="if(event.key==='Enter')doRegister()">
+      </div>
+      <button onclick="doRegister()" id="reg-submit-btn" style="width:100%;padding:10px;
+        background:rgba(201,168,76,0.12);border:1px solid var(--border-bright);
+        color:var(--gold);font-family:'Cinzel',serif;font-size:0.75rem;
+        letter-spacing:0.12em;text-transform:uppercase;border-radius:6px;cursor:pointer;transition:all 0.2s;"
+        onmouseover="this.style.background='rgba(201,168,76,0.25)'"
+        onmouseout="this.style.background='rgba(201,168,76,0.12)'">
+        Begin the Journey
+      </button>
+      <div id="reg-error" style="color:#f87171;font-size:0.8rem;text-align:center;
+        margin-top:10px;display:none;font-family:'Crimson Pro',serif;"></div>
+      <div id="reg-success" style="color:#4caf8a;font-size:0.8rem;text-align:center;
+        margin-top:10px;display:none;font-family:'Crimson Pro',serif;"></div>
+    </div>
+
   </div>
 </div>
 

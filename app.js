@@ -2578,6 +2578,84 @@ async function initApp() {
 // ============================================================
 // AUTH
 // ============================================================
+
+function switchAuthTab(tab) {
+  const loginPanel  = document.getElementById('auth-panel-login');
+  const regPanel    = document.getElementById('auth-panel-register');
+  const loginTab    = document.getElementById('auth-tab-login');
+  const regTab      = document.getElementById('auth-tab-register');
+  if (!loginPanel) return;
+  if (tab === 'login') {
+    loginPanel.style.display = '';
+    regPanel.style.display   = 'none';
+    loginTab.style.borderBottomColor = 'var(--gold)';
+    loginTab.style.color     = 'var(--gold)';
+    loginTab.style.background= 'rgba(201,168,76,0.08)';
+    regTab.style.borderBottomColor   = 'transparent';
+    regTab.style.color       = 'var(--text-dim)';
+    regTab.style.background  = 'transparent';
+  } else {
+    loginPanel.style.display = 'none';
+    regPanel.style.display   = '';
+    regTab.style.borderBottomColor   = 'var(--gold)';
+    regTab.style.color       = 'var(--gold)';
+    regTab.style.background  = 'rgba(201,168,76,0.08)';
+    loginTab.style.borderBottomColor = 'transparent';
+    loginTab.style.color     = 'var(--text-dim)';
+    loginTab.style.background= 'transparent';
+  }
+}
+
+async function doRegister() {
+  const username = (document.getElementById('reg-username')?.value || '').trim();
+  const email    = (document.getElementById('reg-email')?.value || '').trim();
+  const password = document.getElementById('reg-password')?.value || '';
+  const errEl    = document.getElementById('reg-error');
+  const okEl     = document.getElementById('reg-success');
+  errEl.style.display = 'none';
+  okEl.style.display  = 'none';
+
+  if (!username || !email || !password) {
+    errEl.textContent = 'Please fill in all fields.';
+    errEl.style.display = '';
+    return;
+  }
+  if (password.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters.';
+    errEl.style.display = '';
+    return;
+  }
+
+  const btn = document.getElementById('reg-submit-btn');
+  btn.textContent = 'Registering…';
+  btn.disabled = true;
+
+  const { data, error } = await _sb.auth.signUp({
+    email, password,
+    options: { data: { username, role: 'player' } }
+  });
+
+  btn.textContent = 'Begin the Journey';
+  btn.disabled = false;
+
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = '';
+    return;
+  }
+
+  // If email confirmation is disabled, sign in immediately
+  if (data?.session) {
+    await onSignIn(data.user);
+    return;
+  }
+
+  // Email confirmation required
+  okEl.textContent = '✓ Account created! You can now log in.';
+  okEl.style.display = '';
+  switchAuthTab('login');
+}
+
 async function doLogin() {
   const email    = (document.getElementById('login-email')?.value || '').trim();
   const password = document.getElementById('login-password').value;

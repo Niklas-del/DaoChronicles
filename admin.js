@@ -521,37 +521,64 @@ const DAO_NAMES = {fire:'Fire',water:'Water',earth:'Earth',wind:'Wind',thunder:'
 
 async function loadPlayers() {
   try {
-    const { data: chars, error: charErr } = await _sb.from('characters').select('*').order('created_at');
-    if (charErr) throw charErr;
-    if (!chars || !chars.length) { allCharacters = []; renderPlayers([]); return; }
+    // Load ALL profiles (everyone who registered)
+    const { data: profs, error: profErr } = await _sb
+      .from('profiles').select('*').order('created_at');
+    if (profErr) throw profErr;
 
-    // Fetch profiles separately (including is_admin flag)
-    const ownerIds = [...new Set(chars.map(c => c.owner_id))];
-    const { data: profs } = await _sb.from('profiles').select('id, username, is_admin').in('id', ownerIds);
-    const profMap = {};
-    (profs || []).forEach(p => { profMap[p.id] = p; });
+    // Load all characters
+    const { data: chars } = await _sb.from('characters').select('*').order('created_at');
+    const charMap = {};
+    (chars || []).forEach(c => { charMap[c.user_id] = c; });
 
-    allCharacters = chars.map(c => ({ ...c, profiles: profMap[c.owner_id] || null }));
+    // Merge: one row per profile
+    allCharacters = (profs || []).map(p => ({
+      profile: p,
+      character: charMap[p.id] || null,
+    }));
+
     renderPlayers(allCharacters);
   } catch(e) { console.error('loadPlayers error:', e); }
 }
 
-function renderPlayers(chars) {
+function renderPlayers(rows) {
   const tbody = document.getElementById('players-tbody');
-  if (!chars.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No characters yet.</td></tr>'; return; }
-  tbody.innerHTML = chars.map(c => {
-    const isDM = c.profiles?.is_admin;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No registered users yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(({ profile: p, character: c }) => {
+    const isDM = p.is_admin;
     return `<tr style="${isDM ? 'background:rgba(201,168,76,0.04);' : ''}">
-      <td style="color:var(--text-dim);font-size:0.82rem;">
-        ${c.profiles?.username || '—'}
-        ${isDM ? '<span class="badge badge-gold" style="font-size:0.5rem;margin-left:4px;">DM</span>' : ''}
+      <td style="font-size:0.82rem;">
+        <div style="font-family:'Cinzel',serif;color:var(--text)">${p.username || '—'}</div>
+        <div style="color:var(--text-dim);font-size:0.72rem;">${p.id.slice(0,8)}…</div>
       </td>
-      <td style="font-family:\'Cinzel\',serif;font-size:0.82rem;">${c.name}</td>
-      <td style="color:var(--qi-light);font-size:0.8rem;">${c.qi_stage} ${c.qi_sublevel}</td>
-      <td style="color:var(--soul-light);font-size:0.8rem;">${c.soul_stage} ${c.soul_sublevel}</td>
-      <td><button class="btn action-btn" onclick='openCharEdit("${c.id}")'>Edit</button></td>
+      <td style="font-family:'Cinzel',serif;font-size:0.82rem;color:${c ? 'var(--text)' : 'var(--text-dim)'}">
+        ${c ? c.name : '<em>No character</em>'}
+      </td>
+      <td style="color:var(--qi-light);font-size:0.8rem;">${c ? c.qi_stage + ' ' + c.qi_sublevel : '—'}</td>
+      <td style="color:var(--soul-light);font-size:0.8rem;">${c ? c.soul_stage + ' ' + c.soul_sublevel : '—'}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          ${c ? `<button class="btn action-btn" onclick='openCharEdit("${c.id}")'>Edit</button>` : ''}
+          <button class="btn action-btn ${isDM ? 'btn-danger' : ''}"
+            onclick='toggleAdmin("${p.id}", ${isDM})'>
+            ${isDM ? 'Remove DM' : 'Make DM'}
+          </button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
+}
+
+async function toggleAdmin(userId, currentlyAdmin) {
+  const { error } = await _sb.from('profiles')
+    .update({ is_admin: !currentlyAdmin })
+    .eq('id', userId);
+  if (error) { toast(error.message, true); return; }
+  toast(currentlyAdmin ? 'DM access removed' : 'DM access granted ✓');
+  await loadPlayers();
 }
 
 // ── Player & Character Management ───────────────────────────────────────────────
@@ -597,7 +624,7 @@ async function createPlayerAccount() {
     const { error: charErr } = await _sb
       .from('characters')
       .update({ name: finalCharName })
-      .eq('owner_id', userId);
+      .eq('user_id', userId);
     if (charErr) throw charErr;
 
     // Success
