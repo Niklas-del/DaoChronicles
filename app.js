@@ -2718,15 +2718,33 @@ function applyRoleUI() {
 
   // Update header
   const hdr = document.getElementById('app-header');
+
+  // Username label
   const userTag = document.createElement('span');
   userTag.style.cssText = 'font-family:Cinzel,serif;font-size:0.65rem;color:var(--text-dim);margin-right:8px;';
-  userTag.textContent = (isAdmin ? '⚙ DM' : '☯ ' + (currentProfile?.username || 'Cultivator'));
+  userTag.textContent = (isAdmin ? '⚙ DM · ' : '☯ ') + (currentProfile?.username || 'Cultivator');
+
+  // Logout button — clearly labelled
   const logoutBtn = document.createElement('button');
-  logoutBtn.className = 'btn-add-char';
-  logoutBtn.title = 'Sign out';
-  logoutBtn.textContent = '↩';
-  logoutBtn.style.fontSize = '0.85rem';
+  logoutBtn.title   = 'Sign out';
+  logoutBtn.textContent = '↩ Logout';
+  logoutBtn.style.cssText = [
+    'padding:5px 12px',
+    'background:rgba(239,68,68,0.08)',
+    'border:1px solid rgba(239,68,68,0.35)',
+    'border-radius:6px',
+    'color:#f87171',
+    'font-family:Cinzel,serif',
+    'font-size:0.62rem',
+    'letter-spacing:0.08em',
+    'text-transform:uppercase',
+    'cursor:pointer',
+    'transition:all 0.2s',
+  ].join(';');
+  logoutBtn.onmouseover = () => logoutBtn.style.background = 'rgba(239,68,68,0.18)';
+  logoutBtn.onmouseout  = () => logoutBtn.style.background = 'rgba(239,68,68,0.08)';
   logoutBtn.onclick = doLogout;
+
   const switcher = document.getElementById('charSwitcher');
   switcher.insertBefore(logoutBtn, switcher.firstChild);
   hdr.insertBefore(userTag, switcher);
