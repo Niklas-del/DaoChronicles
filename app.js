@@ -2759,7 +2759,28 @@ async function loadCharacterFromDB() {
     const { data: chars, error } = await charQuery.order('created_at');
     if (error) throw error;
     if (!chars || !chars.length) {
-      // No character yet — show empty state
+      if (!isAdmin) {
+        // Auto-create a character for new players
+        const username = currentProfile?.username || 'Cultivator';
+        const { data: newChar, error: createErr } = await _sb
+          .from('characters')
+          .insert({ user_id: currentUser.id, name: username + '\'s Cultivator' })
+          .select().single();
+        if (!createErr && newChar) {
+          currentCharId = newChar.id;
+          state.characters = [{
+            _dbId: newChar.id, _ownerId: newChar.user_id,
+            name: newChar.name,
+            qiStage: 'Mortal', qiSublevel: 'Early', qi: 100, qiPillPts: 0,
+            soulStage: 'Mortal', soulSublevel: 'Early', soul: 100, soulPillPts: 0,
+            coreStats: { str: 10, agi: 10, end: 10, int: 10 },
+            daos: {}, equipment: {}, mapData: {}, gold: 0,
+            items: [], combatSkills: [], cultSkills: [], companions: [],
+          }];
+          renderCharSwitcher(); loadCharToUI(); recalcStats();
+          return;
+        }
+      }
       loadState(); renderCharSwitcher(); loadCharToUI(); recalcStats();
       return;
     }

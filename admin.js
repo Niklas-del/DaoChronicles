@@ -16,24 +16,30 @@ async function checkAdminAccess() {
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 
+async function getSessionToken() {
+  const { data: { session } } = await _sb.auth.getSession();
+  return session?.access_token || SUPABASE_KEY;
+}
 
 async function apiGet(table, params = '') {
+  const token = await getSessionToken();
   const query = [params, 'order=name.asc', 'limit=500'].filter(Boolean).join('&');
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${token}` }
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 async function uploadImage(file) {
+  const token = await getSessionToken();
   const ext  = file.name.split('.').pop();
   const path = `${Date.now()}.${ext}`;
   const res  = await fetch(`${SUPABASE_URL}/storage/v1/object/item-images/${path}`, {
     method: 'POST',
     headers: {
       'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': file.type
     },
     body: file
@@ -561,7 +567,10 @@ function renderPlayers(rows) {
       <td style="color:var(--soul-light);font-size:0.8rem;">${c ? c.soul_stage + ' ' + c.soul_sublevel : '—'}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${c ? `<button class="btn action-btn" onclick='openCharEdit("${c.id}")'>Edit</button>` : ''}
+          ${c
+            ? `<button class="btn action-btn" onclick='openCharEdit("${c.id}")'>Edit</button>`
+            : `<button class="btn action-btn btn-soul" onclick='createCharForPlayer("${p.id}", "${p.username || p.id}")'>+ Create Character</button>`
+          }
           <button class="btn action-btn ${isDM ? 'btn-danger' : ''}"
             onclick='toggleAdmin("${p.id}", ${isDM})'>
             ${isDM ? 'Remove DM' : 'Make DM'}
@@ -570,6 +579,18 @@ function renderPlayers(rows) {
       </td>
     </tr>`;
   }).join('');
+}
+
+async function createCharForPlayer(userId, username) {
+  const charName = prompt('Character name for ' + username + ':', username + "'s Cultivator");
+  if (!charName) return;
+  const { data, error } = await _sb
+    .from('characters')
+    .insert({ user_id: userId, name: charName })
+    .select().single();
+  if (error) { toast('Error: ' + error.message, true); return; }
+  toast('✓ Character "' + charName + '" created');
+  await loadPlayers();
 }
 
 async function toggleAdmin(userId, currentlyAdmin) {
