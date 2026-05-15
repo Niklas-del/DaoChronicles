@@ -704,14 +704,14 @@ function renderGiveItems() {
   const TYPE_ICON = {Weapon:'⚔️',Armor:'🛡️',Flame:'🔥',Soul:'💜',Core:'⚡',Artifact:'🔮','Utility Item':'📜','Cultivation Pill':'💊'};
   grid.innerHTML = items.map(item => {
     const owned = ownedNames.has(item.name);
-    return `<div class="give-card${owned ? ' already-owned' : ''}" onclick="giveItemCard('${item.name.replace(/'/g,"\\'")}')">
+    return `<div class="give-card" onclick="giveItemCard('${item.name.replace(/'/g,"\\'")}')">
       <span class="give-plus">＋</span>
       <div class="give-card-name">${TYPE_ICON[item.type]||'📦'} ${item.name}</div>
       <div class="give-card-sub">${item.type}${item.subtype ? ' · '+item.subtype : ''}</div>
       <div class="give-card-badges">
         ${item.rank ? `<span class="badge badge-gold" style="font-size:0.5rem;">${item.rank}</span>` : ''}
         ${item.energy ? `<span class="badge badge-soul" style="font-size:0.5rem;">${item.energy}</span>` : ''}
-        ${owned ? `<span class="badge" style="font-size:0.5rem;color:var(--jade);border-color:var(--jade)33;">Owned</span>` : ''}
+        ${owned ? `<span class="badge" style="font-size:0.5rem;color:var(--jade);border-color:var(--jade)33;">×${_charOwnedItems.find(i=>i.item_name===item.name)?.quantity||1} owned</span>` : ''}
       </div>
     </div>`;
   }).join('');

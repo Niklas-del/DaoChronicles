@@ -1652,18 +1652,16 @@ function consumePill(itemName) {
       if (error) console.error('Failed to save cultivation:', error.message);
     });
     // Also update item count in character_items
-    if (c._dbId) {
-      _sb.from('character_items').select('*').eq('character_id', currentCharId).eq('item_name', itemName).then(({ data }) => {
-        if (data && data.length > 0) {
-          const row = data[0];
-          if (row.quantity <= 1) {
-            _sb.from('character_items').delete().eq('id', row.id);
-          } else {
-            _sb.from('character_items').update({ quantity: row.quantity - 1 }).eq('id', row.id);
-          }
+    _sb.from('character_items').select('*').eq('character_id', currentCharId).eq('item_name', itemName).then(({ data }) => {
+      if (data && data.length > 0) {
+        const row = data[0];
+        if (row.quantity <= 1) {
+          _sb.from('character_items').delete().eq('id', row.id);
+        } else {
+          _sb.from('character_items').update({ quantity: row.quantity - 1 }).eq('id', row.id);
         }
-      });
-    }
+      }
+    });
   }
 }
 
