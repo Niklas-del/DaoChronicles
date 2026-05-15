@@ -763,7 +763,9 @@ function renderGiveComps() {
 
 async function openCharEdit(charId) {
   editingCharId = charId;
-  const char = allCharacters.find(c => c.id === charId);
+  // allCharacters is now [{profile, character}] — find by character id
+  const row  = allCharacters.find(r => r.character?.id === charId);
+  const char = row?.character || allCharacters.find(c => c.id === charId);
   if (!char) return;
   document.getElementById('char-edit-title').textContent = 'Edit: ' + char.name;
   document.getElementById('char-edit-id').value    = charId;
@@ -889,46 +891,53 @@ async function giveItemCard(name) {
     const itemData = allItems.find(i => i.name === name) || {};
     await _sb.from('character_items').insert({ character_id: editingCharId, item_name: name, quantity: qty, custom_data: itemData });
   }
-  const char = allCharacters.find(c => c.id === editingCharId);
-  await refreshCharLists(editingCharId, char);
-  toast(`✓ ${name} given`);
+  const row = allCharacters.find(r => r.character?.id === editingCharId);
+  await refreshCharLists(editingCharId, row?.character);
+  toast(`✓ ${qty}× ${name} given`);
 }
 
 async function giveSkillCard(name) {
   if (!name || !editingCharId) return;
   const type = document.getElementById('give-skill-type')?.value || 'combat';
+  const already = _charOwnedSkills.find(s => s.skill_name === name && s.skill_type === type);
+  if (already) { toast(`Already has ${name} in ${type} slot`, true); return; }
   const skillData = allSkills.find(s => s.name === name) || {};
   await _sb.from('character_skills').insert({ character_id: editingCharId, skill_name: name, skill_type: type, custom_data: skillData });
-  const char = allCharacters.find(c => c.id === editingCharId);
-  await refreshCharLists(editingCharId, char);
+  const row = allCharacters.find(r => r.character?.id === editingCharId);
+  await refreshCharLists(editingCharId, row?.character);
   toast(`✓ ${name} given`);
 }
 
 async function giveCompCard(name) {
   if (!name || !editingCharId) return;
+  const already = _charOwnedComps.find(c => c.companion_name === name);
+  if (already) { toast(`Already has ${name}`, true); return; }
   const compData = allCompanions.find(c => c.name === name) || {};
   await _sb.from('character_companions').insert({ character_id: editingCharId, companion_name: name, custom_data: compData });
-  const char = allCharacters.find(c => c.id === editingCharId);
-  await refreshCharLists(editingCharId, char);
+  const row = allCharacters.find(r => r.character?.id === editingCharId);
+  await refreshCharLists(editingCharId, row?.character);
   toast(`✓ ${name} given`);
 }
 
 async function removeCharItem(id, charId) {
   await _sb.from('character_items').delete().eq('id', id);
-  const char = allCharacters.find(c => c.id === charId);
-  await refreshCharLists(charId, char); toast('Item removed');
+  const row = allCharacters.find(r => r.character?.id === charId);
+  await refreshCharLists(charId, row?.character);
+  toast('Item removed');
 }
 
 async function removeCharSkill(id, charId) {
   await _sb.from('character_skills').delete().eq('id', id);
-  const char = allCharacters.find(c => c.id === charId);
-  await refreshCharLists(charId, char); toast('Skill removed');
+  const row = allCharacters.find(r => r.character?.id === charId);
+  await refreshCharLists(charId, row?.character);
+  toast('Skill removed');
 }
 
 async function removeCharComp(id, charId) {
   await _sb.from('character_companions').delete().eq('id', id);
-  const char = allCharacters.find(c => c.id === charId);
-  await refreshCharLists(charId, char); toast('Companion removed');
+  const row = allCharacters.find(r => r.character?.id === charId);
+  await refreshCharLists(charId, row?.character);
+  toast('Companion removed');
 }
 
 async function saveCharacterEdit() {
@@ -960,9 +969,9 @@ async function saveCharacterEdit() {
     .eq('id', editingCharId)
     .select();
   if (saveErr) { toast('Save failed: ' + saveErr.message, true); console.error('save error:', saveErr); return; }
-  // Update local cache
-  const idx = allCharacters.findIndex(c => c.id === editingCharId);
-  if (idx >= 0) allCharacters[idx] = { ...allCharacters[idx], ...payload };
+  // Update local cache — allCharacters is [{profile, character}]
+  const idx = allCharacters.findIndex(r => r.character?.id === editingCharId);
+  if (idx >= 0) allCharacters[idx] = { ...allCharacters[idx], character: { ...allCharacters[idx].character, ...payload } };
   renderPlayers(allCharacters);
   closeModal('modal-char-edit');
   toast('Character saved ✓');
@@ -971,7 +980,7 @@ async function saveCharacterEdit() {
 async function deleteCharacter() {
   if (!editingCharId || !confirm('Delete this character and all their data?')) return;
   await _sb.from('characters').delete().eq('id', editingCharId);
-  allCharacters = allCharacters.filter(c => c.id !== editingCharId);
+  allCharacters = allCharacters.map(r => r.character?.id === editingCharId ? { ...r, character: null } : r);
   renderPlayers(allCharacters);
   closeModal('modal-char-edit');
   toast('Character deleted');
