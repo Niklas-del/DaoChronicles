@@ -701,7 +701,7 @@ function renderGiveItems() {
   const grid = document.getElementById('give-item-grid');
   if (!items.length) { grid.innerHTML = '<div style="color:var(--text-dim);font-size:0.82rem;padding:12px;">No items found.</div>'; return; }
 
-  const TYPE_ICON = {Weapon:'⚔️',Armor:'🛡️',Flame:'🔥',Soul:'💜',Core:'⚡',Artifact:'🔮','Utility Item':'📜','Cultivation Pill':'💊'};
+  const TYPE_ICON = {Weapon:'⚔️',Armor:'🛡️',Flame:'🔥',Soul:'💜',Core:'⚡',Artifact:'🔮','Utility Item':'📜','Cultivation Pill':'💊',Material:'🌿'};
   grid.innerHTML = items.map(item => {
     const owned = ownedNames.has(item.name);
     return `<div class="give-card" onclick="giveItemCard('${item.name.replace(/'/g,"\\'")}')">

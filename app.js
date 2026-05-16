@@ -2232,7 +2232,7 @@ async function loadCharIngredients() {
     // Materials now stored as character_items — read from there
     const res = await sbFetch('character_items', `character_id=eq.${charId}`);
     charIngredients = {};
-    const matNames = new Set((allItems || []).filter(i => i.type === 'Cultivation Pill' || i.type === 'Material').map(i => i.name));
+    const matNames = new Set((allItems || []).filter(i => i.type === 'Material').map(i => i.name));
     (res || []).forEach(row => {
       const name = row.item_name;
       if (matNames.has(name) || KNOWN_MATS.has(name)) {
@@ -2276,7 +2276,7 @@ function renderShop(items) {
   grid.innerHTML = items.map(item => {
     const col   = RARITY_COLOR[item.rarity] || 'var(--text-dim)';
     const icon  = CAT_ICON[item.category]   || '📦';
-    const owned = charIngredients[item.name] || 0;
+    const owned = charIngredients[item.name] || 0;  // materials stored in character_items
     return `<div class="shop-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
         <div class="shop-card-name">${icon} ${item.name}</div>
