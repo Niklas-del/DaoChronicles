@@ -374,6 +374,9 @@ function equipItem(item) {
   saveState(); renderEquipSlots(); recalcStats();
   if (document.getElementById('tab-inventory').classList.contains('active')) renderItemList(c.items);
   closeModal('modal-equip-search');
+
+  // Save equipment to Supabase
+  saveEquipmentToDB(c.equipment);
 }
 
 function unequipSlot() {
@@ -391,6 +394,18 @@ function unequipSlot() {
   saveState(); renderEquipSlots(); recalcStats();
   if (document.getElementById('tab-inventory').classList.contains('active')) renderItemList(c.items);
   closeModal('modal-equip-search');
+
+  // Save equipment to Supabase
+  saveEquipmentToDB(c.equipment);
+}
+
+async function saveEquipmentToDB(equipment) {
+  if (!currentCharId) return;
+  const { error } = await _sb
+    .from('characters')
+    .update({ equipment })
+    .eq('id', currentCharId);
+  if (error) console.error('Failed to save equipment:', error.message);
 }
 
 // ============================================================
