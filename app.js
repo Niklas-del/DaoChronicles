@@ -1737,16 +1737,18 @@ function consumePill(itemName) {
     _sb.from('characters').update(dbPayload).eq('id', currentCharId).then(({ error }) => {
       if (error) console.error('Failed to save cultivation:', error.message);
     });
-    // Also update item count in character_items
-    _sb.from('character_items').select('*').eq('character_id', currentCharId).eq('item_name', itemName).then(({ data }) => {
+    // Also update item count in character_items, then live-refresh
+    _sb.from('character_items').select('*').eq('character_id', currentCharId).eq('item_name', itemName).then(async ({ data }) => {
       if (data && data.length > 0) {
         const row = data[0];
         if (row.quantity <= 1) {
-          _sb.from('character_items').delete().eq('id', row.id);
+          await _sb.from('character_items').delete().eq('id', row.id);
         } else {
-          _sb.from('character_items').update({ quantity: row.quantity - 1 }).eq('id', row.id);
+          await _sb.from('character_items').update({ quantity: row.quantity - 1 }).eq('id', row.id);
         }
       }
+      // Refresh so inventory updates without reload
+      refreshCharacter();
     });
   }
 }
@@ -2348,8 +2350,7 @@ async function buyIngredient(id, name, price) {
 
     showToastShop(`✓ Bought ${qty}x ${name} for ${total} gold`);
     filterShop();
-    renderIngredientPouch();
-    filterRecipes();
+    await refreshCharacter();
   } catch(e) { showToastShop(e.message, true); }
 }
 
@@ -2528,8 +2529,8 @@ async function attemptCraft(recipeId) {
       showCraftResult(false, recipe.pill_name, roll.toFixed(0), effectiveRate, false, cauldron?.name);
     }
 
-    renderIngredientPouch();
-    filterRecipes();
+    // Live refresh so player sees pills immediately without reload
+    await refreshCharacter();
   } catch(e) { showToastShop(e.message, true); }
 }
 
@@ -2949,6 +2950,84 @@ function applyRoleUI() {
 }
 
 // Load the player's character from Supabase
+// ── Live refresh — reload items/skills/companions from DB and re-render ──────
+async function refreshCharacter() {
+  const charId = currentCharId;
+  if (!charId) return;
+  try {
+    const [itemsRes, skillsRes, compsRes] = await Promise.all([
+      _sb.from('character_items').select('*').eq('character_id', charId),
+      _sb.from('character_skills').select('*').eq('character_id', charId),
+      _sb.from('character_companions').select('*').eq('character_id', charId),
+    ]);
+
+    // Load catalog data for enrichment
+    const itemNames  = (itemsRes.data  || []).map(i => i.item_name);
+    const skillNames = (skillsRes.data || []).map(s => s.skill_name);
+    let catalogMap = {}, skillCatalogMap = {};
+    if (itemNames.length) {
+      const { data } = await _sb.from('items').select('*').in('name', itemNames);
+      (data || []).forEach(ci => { catalogMap[ci.name] = ci; });
+    }
+    if (skillNames.length) {
+      const { data } = await _sb.from('skills').select('*').in('name', skillNames);
+      (data || []).forEach(cs => { skillCatalogMap[cs.name] = cs; });
+    }
+
+    const c = getChar();
+    if (!c) return;
+
+    // Rebuild items with full catalog data
+    c.items = (itemsRes.data || []).map(i => {
+      const cat = catalogMap[i.item_name] || {};
+      return {
+        ...i.custom_data,
+        name:           i.item_name,
+        type:           cat.type            || i.custom_data?.type,
+        subtype:        cat.subtype          || i.custom_data?.subtype,
+        rank:           cat.rank             || i.custom_data?.rank,
+        energy:         cat.energy           || i.custom_data?.energy,
+        effect:         cat.effect           || i.custom_data?.effect,
+        abilities:      cat.abilities        || i.custom_data?.abilities || [],
+        pillPoints:     cat.pill_points      || i.custom_data?.pillPoints || 1,
+        pillTrack:      cat.pill_track       || i.custom_data?.pillTrack  || 'qi',
+        price:          cat.price            || i.custom_data?.price,
+        bonuses:        cat.bonuses          || i.custom_data?.bonuses    || {},
+        _dbId:  i.id,
+        _qty:   i.quantity,
+        image:  i.custom_data?.image || null,
+      };
+    });
+
+    // Rebuild skills
+    c.combatSkills = (skillsRes.data || []).filter(s => s.skill_type === 'combat').map(s => {
+      const cat = skillCatalogMap[s.skill_name] || {};
+      return { ...s.custom_data, ...cat, name: s.skill_name, _dbId: s.id };
+    });
+    c.cultSkills = (skillsRes.data || []).filter(s => s.skill_type !== 'combat').map(s => {
+      const cat = skillCatalogMap[s.skill_name] || {};
+      return { ...s.custom_data, ...cat, name: s.skill_name, _dbId: s.id };
+    });
+
+    // Rebuild companions
+    c.companions = (compsRes.data || []).map(comp => ({ ...comp.custom_data, name: comp.companion_name, _dbId: comp.id }));
+
+    // Re-render whatever tab is active
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+    renderItemList(c.items);
+    if (document.getElementById('tab-stats')?.classList.contains('active')) renderStats();
+    if (document.getElementById('tab-combat')?.classList.contains('active')) renderSkills();
+    renderEquipSlots();
+
+    // Reload ingredients for alchemy tab
+    await loadCharIngredients();
+    if (document.getElementById('tab-alchemy')?.classList.contains('active')) {
+      renderIngredientPouch();
+      filterRecipes();
+    }
+  } catch(e) { console.error('refreshCharacter error:', e); }
+}
+
 async function loadCharacterFromDB() {
   if (!currentUser) return;
   try {
@@ -3097,3 +3176,10 @@ _sb.auth.getSession().then(async ({ data: { session } }) => {
 
 // Re-render SVG after map img loads
 document.getElementById('map-img').onload = renderPins;
+
+// Background poll every 15s — picks up items given by DM without reload
+setInterval(() => {
+  if (currentCharId && document.visibilityState === 'visible') {
+    refreshCharacter();
+  }
+}, 15000);
