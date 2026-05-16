@@ -17,13 +17,13 @@ const CORE_ID_MAP      = { str:'core-str', agi:'core-agi', end:'core-end', int:'
 // Qi Defense   = (end + agi) / 2  × qiLevel   × equipBonus
 // Soul Strength= (int + str) / 2  × soulLevel × equipBonus
 // Soul Defense = (int + end) / 2  × soulLevel × equipBonus
-const EQUIP_ICONS = { weapon:'⚔️', armor:'🛡️', soul:'💜', flame:'🔥', core:'⚡' };
+const EQUIP_ICONS = { weapon:'⚔️', armor:'🛡️', soul:'💜', flame:'🔥', core:'⚡', artifact:'🔮' };
 
 function newCharacter(name) {
   return {
     name, qiStage:'Mortal', qiSublevel:'Early', qi:100, soulStage:'Mortal', soulSublevel:'Early', soul:100, qiPillPts:0, soulPillPts:0,
     coreStats:{ str:10,agi:10,end:10,int:10 },
-    equipment:{ weapon:null,armor:null,soul:null,flame:null,core:null },
+    equipment:{ weapon:null,armor:null,soul:null,flame:null,core:null,artifact:null },
     combatSkills:[], cultSkills:[], items:[], companions:[],
     maps:[], activePinMode:false
   };
@@ -291,14 +291,15 @@ function openEquipSlot(slot) {
 // Strict slot → item type mapping. Only matching types show when equipping.
 // Artifact / Utility Item / Cultivation Pill are inventory-only — never equippable.
 const SLOT_TYPE_MAP = {
-  weapon: ['Weapon'],
-  armor:  ['Armor'],
-  soul:   ['Soul'],
-  flame:  ['Flame'],
-  core:   ['Core']
+  weapon:   ['Weapon'],
+  armor:    ['Armor'],
+  soul:     ['Soul'],
+  flame:    ['Flame'],
+  core:     ['Core'],
+  artifact: ['Artifact'],
 };
 // Inventory-only types (cannot be equipped to any slot)
-const INVENTORY_ONLY_TYPES = new Set(['Artifact','Utility Item','Cultivation Pill']);
+const INVENTORY_ONLY_TYPES = new Set(['Utility Item','Cultivation Pill','Material']);
 
 function runEquipSearch() {
   const q    = document.getElementById('equip-search-input').value.toLowerCase();
@@ -2397,7 +2398,8 @@ function renderRecipes(recipes) {
   if (!recipes.length) { grid.innerHTML = '<div style="color:var(--text-dim);font-style:italic;padding:20px;grid-column:1/-1;">No recipes found.</div>'; return; }
   // Check for equipped cauldron bonus
   const equip    = getChar()?.equipment || {};
-  const cauldron = Object.values(equip).find(item => item && item.subtype === 'Cauldron');
+  const cauldron = equip.artifact?.subtype === 'Cauldron' ? equip.artifact
+    : Object.values(equip).find(item => item && item.subtype === 'Cauldron');
   const caulBon  = cauldron?.bonuses || {};
   const craftBonus   = caulBon.craftBonus   || 0;
   const doubleChance = caulBon.doubleChance  || 0;
@@ -2463,9 +2465,9 @@ async function attemptCraft(recipeId) {
 
   // ── Check for equipped cauldron in artifact slot ──────────────────────────
   const equip      = getChar().equipment || {};
-  const cauldron   = Object.values(equip).find(item =>
-    item && item.subtype === 'Cauldron'
-  );
+  // Cauldrons equip in the artifact slot
+  const cauldron   = equip.artifact?.subtype === 'Cauldron' ? equip.artifact
+    : Object.values(equip).find(item => item && item.subtype === 'Cauldron');
   const caulBonuses     = cauldron?.bonuses || {};
   const craftBonus      = caulBonuses.craftBonus      || 0;
   const doubleChance    = caulBonuses.doubleChance     || 0;
