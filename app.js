@@ -64,7 +64,7 @@ function switchTab(name, btn) {
   btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   if (name === 'stats') renderStats();
   if (name === 'combat') renderSkills();
-  if (name === 'inventory') renderInventory();
+  if (name === 'inventory') { renderInventory(); _maybeSyncInventory(); }
   if (name === 'map') renderMap();
   if (name === 'lore')    { if (!allPlaques.length) loadPlaques(); else filterPlaques(); }
   if (name === 'shop')    {
@@ -156,15 +156,26 @@ function loadCharToUI() {
 }
 
 // Saves form fields into local state cache (synced to Supabase via loadCharacterFromDB)
+let _saveCharTimer = null;
+let _lastInventorySync = 0;
+
+// Only sync from DB if inventory data is more than 60s old
+async function _maybeSyncInventory() {
+  const now = Date.now();
+  if (now - _lastInventorySync > 60000) {
+    _lastInventorySync = now;
+    await refreshCharacter();
+  }
+}
 function saveChar() {
   const c = getChar(); if (!c) return;
-  c.name = document.getElementById('char-name').value;
-  c.qiStage = document.getElementById('qi-stage').value;
+  c.name       = document.getElementById('char-name').value;
+  c.qiStage    = document.getElementById('qi-stage').value;
   c.qiSublevel = document.getElementById('qi-sublevel').value;
-  c.qi = parseInt(document.getElementById('char-qi').value) || 0;
-  c.soulStage = document.getElementById('soul-stage').value;
+  c.qi         = parseInt(document.getElementById('char-qi').value)   || 0;
+  c.soulStage    = document.getElementById('soul-stage').value;
   c.soulSublevel = document.getElementById('soul-sublevel').value;
-  c.soul = parseInt(document.getElementById('char-soul').value) || 0;
+  c.soul         = parseInt(document.getElementById('char-soul').value) || 0;
   if (!c.coreStats) c.coreStats = {};
   CORE_STAT_KEYS.forEach(k => {
     const el = document.getElementById(CORE_ID_MAP[k]);
@@ -173,6 +184,27 @@ function saveChar() {
   const pills = document.querySelectorAll('.char-pill');
   if (pills[state.activeCharIdx]) pills[state.activeCharIdx].textContent = c.name || 'Character';
   saveState();
+
+  // Debounce DB write — wait 800ms after last keystroke before saving
+  clearTimeout(_saveCharTimer);
+  _saveCharTimer = setTimeout(() => {
+    if (!currentCharId) return;
+    _sb.from('characters').update({
+      name:         c.name,
+      qi_stage:     c.qiStage,
+      qi_sublevel:  c.qiSublevel,
+      qi_power:     c.qi,
+      soul_stage:   c.soulStage,
+      soul_sublevel:c.soulSublevel,
+      soul_power:   c.soul,
+      stat_str:     c.coreStats?.str || 10,
+      stat_agi:     c.coreStats?.agi || 10,
+      stat_end:     c.coreStats?.end || 10,
+      stat_int:     c.coreStats?.int || 10,
+    }).eq('id', currentCharId).then(({ error }) => {
+      if (error) console.error('saveChar DB error:', error.message);
+    });
+  }, 800);
 }
 
 const STAGE_ORDER = ['Mortal','Beginner','Veteran','Master','Expert','Sage','Lord','Monarch','Immortal','Saint','Earth God','Sky God','Dao Completion'];
@@ -1662,28 +1694,33 @@ function advanceCultivation(c, track, points) {
 // Pill definitions — name → { track, powerGain, pillPts }
 // powerGain goes directly to qi_power or soul_power
 // pillPts advances sublevel/stage (10 pts = 1 sublevel)
+// Power gain is added to qi_power / soul_power (max 10000).
+// Balanced so that reaching max power requires ~50 legendary pills
+// or ~100 common pills — meaningful progression without being trivial.
 const PILL_DEFINITIONS = {
-  // ── Original pills ────────────────────────────────────
-  'Mind Cultivation Pill':        { track: 'soul', powerGain: 200,  pillPts: 2  },
-  'Qi Boosting Pill':             { track: 'qi',   powerGain: 200,  pillPts: 2  },
-  'Body Refinement Pill':         { track: 'qi',   powerGain: 150,  pillPts: 3  },
-  'Soul Clarity Pill':            { track: 'soul', powerGain: 350,  pillPts: 4  },
-  'Crimson Flame Burst Pill':     { track: 'qi',   powerGain: 400,  pillPts: 4  },
-  'Glacial Soul Pill':            { track: 'soul', powerGain: 350,  pillPts: 4  },
-  'Bodhi Insight Core':           { track: 'soul', powerGain: 300,  pillPts: 5  },
-  'Phoenix Fire Essence Dan':     { track: 'qi',   powerGain: 600,  pillPts: 8  },
-  'Void Transcendence Pill':      { track: 'both', powerGain: 400,  pillPts: 12 },
-  // ── New pills ─────────────────────────────────────────
-  'Thunder Tempering Pill':       { track: 'qi',   powerGain: 250,  pillPts: 2  },
-  'Frost Soul Essence Pill':      { track: 'soul', powerGain: 250,  pillPts: 2  },
-  'Earth Foundation Pill':        { track: 'qi',   powerGain: 300,  pillPts: 3  },
-  'Life Renewal Pill':            { track: 'soul', powerGain: 200,  pillPts: 3  },
-  'Dragon Blood Refinement Pill': { track: 'qi',   powerGain: 450,  pillPts: 4  },
-  'Void Clarity Pill':            { track: 'soul', powerGain: 400,  pillPts: 4  },
-  'Heaven Ascension Pill':        { track: 'both', powerGain: 600,  pillPts: 10 },
-  'Saint Foundation Core':        { track: 'qi',   powerGain: 1000, pillPts: 15 },
-  'Soul Sovereign Pill':          { track: 'soul', powerGain: 1000, pillPts: 15 },
-  'Dao Resonance Pill':           { track: 'both', powerGain: 1500, pillPts: 20 },
+  // ── Common / Uncommon (D rank) ────────────────────────
+  'Mind Cultivation Pill':        { track: 'soul', powerGain: 80,  pillPts: 2  },
+  'Qi Boosting Pill':             { track: 'qi',   powerGain: 80,  pillPts: 2  },
+  'Body Refinement Pill':         { track: 'qi',   powerGain: 60,  pillPts: 3  },
+  'Thunder Tempering Pill':       { track: 'qi',   powerGain: 90,  pillPts: 2  },
+  'Frost Soul Essence Pill':      { track: 'soul', powerGain: 90,  pillPts: 2  },
+  'Earth Foundation Pill':        { track: 'qi',   powerGain: 100, pillPts: 3  },
+  'Life Renewal Pill':            { track: 'soul', powerGain: 80,  pillPts: 3  },
+  // ── Rare (C rank) ─────────────────────────────────────
+  'Soul Clarity Pill':            { track: 'soul', powerGain: 150, pillPts: 4  },
+  'Crimson Flame Burst Pill':     { track: 'qi',   powerGain: 160, pillPts: 4  },
+  'Glacial Soul Pill':            { track: 'soul', powerGain: 150, pillPts: 4  },
+  'Dragon Blood Refinement Pill': { track: 'qi',   powerGain: 180, pillPts: 4  },
+  'Void Clarity Pill':            { track: 'soul', powerGain: 160, pillPts: 4  },
+  'Bodhi Insight Core':           { track: 'soul', powerGain: 130, pillPts: 5  },
+  // ── Epic / Gold (B rank) ──────────────────────────────
+  'Phoenix Fire Essence Dan':     { track: 'qi',   powerGain: 280, pillPts: 8  },
+  'Void Transcendence Pill':      { track: 'both', powerGain: 200, pillPts: 12 },
+  'Heaven Ascension Pill':        { track: 'both', powerGain: 250, pillPts: 10 },
+  // ── Legendary / Mythic (A–S rank) ────────────────────
+  'Saint Foundation Core':        { track: 'qi',   powerGain: 450, pillPts: 15 },
+  'Soul Sovereign Pill':          { track: 'soul', powerGain: 450, pillPts: 15 },
+  'Dao Resonance Pill':           { track: 'both', powerGain: 600, pillPts: 20 },
 };
 
 // Called when a pill is consumed from inventory
@@ -1762,23 +1799,29 @@ function consumePill(itemName) {
           await _sb.from('character_items').update({ quantity: row.quantity - 1 }).eq('id', row.id);
         }
       }
-      // Refresh so inventory updates without reload
-      refreshCharacter();
+      // Refresh so inventory updates without reload (skipped when consumePillQty handles it)
+      if (!window._skipPillRefresh) refreshCharacter();
     });
   }
 }
 
 // Consume multiple pills at once — called from qty input + button
-function consumePillQty(itemName, inputId) {
+async function consumePillQty(itemName, inputId) {
   const qtyEl = document.getElementById('pqty_' + inputId);
   const qty = Math.max(1, parseInt(qtyEl?.value) || 1);
+  // Temporarily disable refresh inside consumePill to avoid multiple DB hits
+  const origRefresh = window._skipPillRefresh;
+  window._skipPillRefresh = true;
   for (let i = 0; i < qty; i++) {
     const c = getChar();
     if (!c) break;
     const idx = c.items.findIndex(it => it.name === itemName && it.type === 'Cultivation Pill');
-    if (idx < 0) break; // ran out of pills
+    if (idx < 0) break;
     consumePill(itemName);
   }
+  window._skipPillRefresh = origRefresh;
+  // Single refresh after all pills consumed
+  await refreshCharacter();
 }
 
 // Sync qi/soul number inputs after pill consumption
@@ -2959,13 +3002,62 @@ function applyRoleUI() {
   logoutBtn.onmouseout  = () => logoutBtn.style.background = 'rgba(239,68,68,0.08)';
   logoutBtn.onclick = doLogout;
 
+  // Manual sync button — pulls latest data from DB on demand
+  const syncBtn = document.createElement('button');
+  syncBtn.title = 'Sync from server';
+  syncBtn.textContent = '↻';
+  syncBtn.style.cssText = [
+    'padding:5px 10px',
+    'background:rgba(6,182,212,0.08)',
+    'border:1px solid rgba(6,182,212,0.3)',
+    'border-radius:6px',
+    'color:var(--qi-light)',
+    'font-size:0.85rem',
+    'cursor:pointer',
+    'transition:all 0.2s',
+    'margin-right:4px',
+  ].join(';');
+  syncBtn.onmouseover = () => syncBtn.style.background = 'rgba(6,182,212,0.18)';
+  syncBtn.onmouseout  = () => syncBtn.style.background = 'rgba(6,182,212,0.08)';
+  syncBtn.onclick = async () => {
+    syncBtn.textContent = '↻';
+    syncBtn.style.opacity = '0.5';
+    syncBtn.style.pointerEvents = 'none';
+    _lastInventorySync = 0; // force refresh
+    await refreshCharacter();
+    syncBtn.style.opacity = '1';
+    syncBtn.style.pointerEvents = '';
+    syncBtn.textContent = '✓';
+    setTimeout(() => { syncBtn.textContent = '↻'; }, 1500);
+  };
+
   const switcher = document.getElementById('charSwitcher');
   switcher.insertBefore(logoutBtn, switcher.firstChild);
   hdr.insertBefore(userTag, switcher);
 }
 
 // Load the player's character from Supabase
+// Catalog caches — built once from ITEMS_DATA/SKILLS_DATA, reused on every refresh
+let _catalogCache = null;
+let _skillCatalogCache = null;
+
+function getCatalogCache() {
+  if (!_catalogCache && ITEMS_DATA.length) {
+    _catalogCache = {};
+    ITEMS_DATA.forEach(i => { _catalogCache[i.name] = i; });
+  }
+  return _catalogCache || {};
+}
+function getSkillCatalogCache() {
+  if (!_skillCatalogCache && SKILLS_DATA.length) {
+    _skillCatalogCache = {};
+    SKILLS_DATA.forEach(s => { _skillCatalogCache[s.name] = s; });
+  }
+  return _skillCatalogCache || {};
+}
+
 // ── Live refresh — reload items/skills/companions from DB and re-render ──────
+// Only 3 DB calls per refresh. Catalog data reused from memory cache.
 async function refreshCharacter() {
   const charId = currentCharId;
   if (!charId) return;
@@ -2976,18 +3068,9 @@ async function refreshCharacter() {
       _sb.from('character_companions').select('*').eq('character_id', charId),
     ]);
 
-    // Load catalog data for enrichment
-    const itemNames  = (itemsRes.data  || []).map(i => i.item_name);
-    const skillNames = (skillsRes.data || []).map(s => s.skill_name);
-    let catalogMap = {}, skillCatalogMap = {};
-    if (itemNames.length) {
-      const { data } = await _sb.from('items').select('*').in('name', itemNames);
-      (data || []).forEach(ci => { catalogMap[ci.name] = ci; });
-    }
-    if (skillNames.length) {
-      const { data } = await _sb.from('skills').select('*').in('name', skillNames);
-      (data || []).forEach(cs => { skillCatalogMap[cs.name] = cs; });
-    }
+    // Use in-memory catalog cache — no extra DB calls
+    const catalogMap      = getCatalogCache();
+    const skillCatalogMap = getSkillCatalogCache();
 
     const c = getChar();
     if (!c) return;
@@ -3192,9 +3275,5 @@ _sb.auth.getSession().then(async ({ data: { session } }) => {
 // Re-render SVG after map img loads
 document.getElementById('map-img').onload = renderPins;
 
-// Background poll every 15s — picks up items given by DM without reload
-setInterval(() => {
-  if (currentCharId && document.visibilityState === 'visible') {
-    refreshCharacter();
-  }
-}, 15000);
+// No background poll — refreshes only happen on user actions.
+// Player can manually sync via the ↻ button in the header.
