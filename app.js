@@ -395,6 +395,34 @@ function unequipSlot() {
 // ============================================================
 // STATS
 // ============================================================
+
+// Enriches equipment slots with full catalog data (bonuses, type, rank etc.)
+async function enrichEquipment(equipment, catalogMap) {
+  if (!equipment) return {};
+  const enriched = {};
+  for (const [slot, item] of Object.entries(equipment)) {
+    if (!item) { enriched[slot] = null; continue; }
+    // Look up in already-loaded catalogMap first, then fetch if missing
+    let catalog = catalogMap[item.name];
+    if (!catalog) {
+      const { data } = await _sb.from('items').select('*').eq('name', item.name).maybeSingle();
+      catalog = data || {};
+    }
+    enriched[slot] = {
+      ...item,
+      type:           catalog.type           || item.type,
+      subtype:        catalog.subtype         || item.subtype,
+      rank:           catalog.rank            || item.rank,
+      energy:         catalog.energy          || item.energy,
+      specialization: catalog.specialization  || item.specialization,
+      effect:         catalog.effect          || item.effect,
+      abilities:      catalog.abilities       || item.abilities || [],
+      bonuses:        catalog.bonuses         || item.bonuses   || {},
+    };
+  }
+  return enriched;
+}
+
 // Maps stat keys to bonus fields in the new item structure
 const STAT_BONUS_MAP = {
   str:     ['strength'],
@@ -2889,10 +2917,57 @@ async function loadCharacterFromDB() {
         _sb.from('character_skills').select('*').eq('character_id', row.id),
         _sb.from('character_companions').select('*').eq('character_id', row.id),
       ]);
-      const items     = (itemsRes.data  || []).map(i => ({ ...i.custom_data, name: i.item_name, _dbId: i.id, _qty: i.quantity }));
-      const cSkills   = (skillsRes.data || []).filter(s => s.skill_type === 'combat').map(s => ({ ...s.custom_data, name: s.skill_name, _dbId: s.id }));
-      const cultSkills= (skillsRes.data || []).filter(s => s.skill_type === 'cultivation').map(s => ({ ...s.custom_data, name: s.skill_name, _dbId: s.id }));
-      const companions= (compsRes.data  || []).map(c => ({ ...c.custom_data, name: c.companion_name, _dbId: c.id }));
+
+      // Load full item catalog data so bonuses, type, rank etc. are available
+      const itemNames = (itemsRes.data || []).map(i => i.item_name);
+      let catalogMap = {};
+      if (itemNames.length) {
+        const { data: catalogItems } = await _sb.from('items').select('*').in('name', itemNames);
+        (catalogItems || []).forEach(ci => { catalogMap[ci.name] = ci; });
+      }
+
+      // Load full skill catalog data
+      const skillNames = (skillsRes.data || []).map(s => s.skill_name);
+      let skillCatalogMap = {};
+      if (skillNames.length) {
+        const { data: catalogSkills } = await _sb.from('skills').select('*').in('name', skillNames);
+        (catalogSkills || []).forEach(cs => { skillCatalogMap[cs.name] = cs; });
+      }
+
+      const items = (itemsRes.data || []).map(i => {
+        const catalog = catalogMap[i.item_name] || {};
+        // Normalize bonus keys: catalog uses qiStrength, qiDefense etc.
+        const bonuses = catalog.bonuses || i.custom_data?.bonuses || {};
+        return {
+          ...i.custom_data,
+          // Catalog fields override custom_data
+          name:           i.item_name,
+          type:           catalog.type           || i.custom_data?.type,
+          subtype:        catalog.subtype         || i.custom_data?.subtype,
+          rank:           catalog.rank            || i.custom_data?.rank,
+          energy:         catalog.energy          || i.custom_data?.energy,
+          specialization: catalog.specialization  || i.custom_data?.specialization,
+          effect:         catalog.effect          || i.custom_data?.effect,
+          abilities:      catalog.abilities       || i.custom_data?.abilities || [],
+          pillPoints:     catalog.pill_points     || i.custom_data?.pillPoints || 1,
+          pillTrack:      catalog.pill_track      || i.custom_data?.pillTrack  || 'qi',
+          price:          catalog.price           || i.custom_data?.price,
+          bonuses,
+          _dbId:  i.id,
+          _qty:   i.quantity,
+          image:  i.custom_data?.image || null,
+        };
+      });
+
+      const cSkills    = (skillsRes.data || []).filter(s => s.skill_type === 'combat').map(s => {
+        const cat = skillCatalogMap[s.skill_name] || {};
+        return { ...s.custom_data, ...cat, name: s.skill_name, _dbId: s.id };
+      });
+      const cultSkills = (skillsRes.data || []).filter(s => s.skill_type !== 'combat').map(s => {
+        const cat = skillCatalogMap[s.skill_name] || {};
+        return { ...s.custom_data, ...cat, name: s.skill_name, _dbId: s.id };
+      });
+      const companions = (compsRes.data || []).map(c => ({ ...c.custom_data, name: c.companion_name, _dbId: c.id }));
       return {
         _dbId:       row.id,
         _ownerId:    row.user_id,
@@ -2907,7 +2982,7 @@ async function loadCharacterFromDB() {
         soulPillPts: row.soul_pill_pts,
         coreStats:   { str: row.stat_str, agi: row.stat_agi, end: row.stat_end, int: row.stat_int },
         daos:        row.daos || {},
-        equipment:   row.equipment || {},
+        equipment:   await enrichEquipment(row.equipment || {}, catalogMap),
         mapData:     row.map_data || {},
         gold:        row.gold || 0,
         items, combatSkills: cSkills, cultSkills, companions,
