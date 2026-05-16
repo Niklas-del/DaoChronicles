@@ -2549,8 +2549,9 @@ async function sbFetch(table, params = '') {
   const session = (await _sb.auth.getSession()).data.session;
   const token   = session?.access_token || SUPABASE_KEY;
   // Only add default order if caller hasn't specified one
+  // Use created_at as safe default — all tables have it. 'name' doesn't exist on character_items etc.
   const hasOrder = params.includes('order=');
-  const query = [params, hasOrder ? '' : 'order=name.asc', 'limit=500'].filter(Boolean).join('&');
+  const query = [params, hasOrder ? '' : 'order=created_at.asc', 'limit=500'].filter(Boolean).join('&');
   const url = `${SUPABASE_URL}/rest/v1/${table}?${query}`;
   const res = await fetch(url, {
     method: 'GET',
