@@ -1616,15 +1616,27 @@ function advanceCultivation(c, track, points) {
 // powerGain goes directly to qi_power or soul_power
 // pillPts advances sublevel/stage (10 pts = 1 sublevel)
 const PILL_DEFINITIONS = {
-  'Mind Cultivation Pill':    { track: 'soul', powerGain: 200, pillPts: 2 },
-  'Qi Boosting Pill':         { track: 'qi',   powerGain: 200, pillPts: 2 },
-  'Body Refinement Pill':     { track: 'qi',   powerGain: 150, pillPts: 3 },
-  'Soul Clarity Pill':        { track: 'soul', powerGain: 350, pillPts: 4 },
-  'Crimson Flame Burst Pill': { track: 'qi',   powerGain: 400, pillPts: 4 },
-  'Glacial Soul Pill':        { track: 'soul', powerGain: 350, pillPts: 4 },
-  'Bodhi Insight Core':       { track: 'soul', powerGain: 300, pillPts: 5 },
-  'Phoenix Fire Essence Dan': { track: 'qi',   powerGain: 600, pillPts: 8 },
-  'Void Transcendence Pill':  { track: 'both', powerGain: 400, pillPts: 12 },
+  // ── Original pills ────────────────────────────────────
+  'Mind Cultivation Pill':        { track: 'soul', powerGain: 200,  pillPts: 2  },
+  'Qi Boosting Pill':             { track: 'qi',   powerGain: 200,  pillPts: 2  },
+  'Body Refinement Pill':         { track: 'qi',   powerGain: 150,  pillPts: 3  },
+  'Soul Clarity Pill':            { track: 'soul', powerGain: 350,  pillPts: 4  },
+  'Crimson Flame Burst Pill':     { track: 'qi',   powerGain: 400,  pillPts: 4  },
+  'Glacial Soul Pill':            { track: 'soul', powerGain: 350,  pillPts: 4  },
+  'Bodhi Insight Core':           { track: 'soul', powerGain: 300,  pillPts: 5  },
+  'Phoenix Fire Essence Dan':     { track: 'qi',   powerGain: 600,  pillPts: 8  },
+  'Void Transcendence Pill':      { track: 'both', powerGain: 400,  pillPts: 12 },
+  // ── New pills ─────────────────────────────────────────
+  'Thunder Tempering Pill':       { track: 'qi',   powerGain: 250,  pillPts: 2  },
+  'Frost Soul Essence Pill':      { track: 'soul', powerGain: 250,  pillPts: 2  },
+  'Earth Foundation Pill':        { track: 'qi',   powerGain: 300,  pillPts: 3  },
+  'Life Renewal Pill':            { track: 'soul', powerGain: 200,  pillPts: 3  },
+  'Dragon Blood Refinement Pill': { track: 'qi',   powerGain: 450,  pillPts: 4  },
+  'Void Clarity Pill':            { track: 'soul', powerGain: 400,  pillPts: 4  },
+  'Heaven Ascension Pill':        { track: 'both', powerGain: 600,  pillPts: 10 },
+  'Saint Foundation Core':        { track: 'qi',   powerGain: 1000, pillPts: 15 },
+  'Soul Sovereign Pill':          { track: 'soul', powerGain: 1000, pillPts: 15 },
+  'Dao Resonance Pill':           { track: 'both', powerGain: 1500, pillPts: 20 },
 };
 
 // Called when a pill is consumed from inventory
