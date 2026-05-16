@@ -2229,13 +2229,23 @@ async function loadCharIngredients() {
   const KNOWN_MATS = new Set(['Bodhi Leaf','Spirit Flame Crystal','Frostlotus Petal','Dragon Blood Herb','Moon Dew Essence','Phoenix Feather Ash','Thunder Root','Life Spring Water','Dreamlotus Extract','Iron Blood Fungus','Earth Core Shard','Spirit Nebel Dew','Void Crystal','Heaven Silk Thread','Demon Core Fragment']);
 
   try {
-    // Materials now stored as character_items — read from there
+    // Materials now stored as character_items — fetch with type from items catalog
     const res = await sbFetch('character_items', `character_id=eq.${charId}`);
     charIngredients = {};
-    const matNames = new Set((allItems || []).filter(i => i.type === 'Material').map(i => i.name));
+
+    // Build name set from ITEMS_DATA if loaded, fallback to KNOWN_MATS
+    const catalogMats = new Set((ITEMS_DATA || []).filter(i => i.type === 'Material').map(i => i.name));
+    const isMatName = name => catalogMats.has(name) || KNOWN_MATS.has(name);
+
+    // If catalog not loaded yet, fetch material names from DB directly
+    if (!catalogMats.size) {
+      const { data: matRows } = await _sb.from('items').select('name').eq('type', 'Material');
+      (matRows || []).forEach(r => catalogMats.add(r.name));
+    }
+
     (res || []).forEach(row => {
       const name = row.item_name;
-      if (matNames.has(name) || KNOWN_MATS.has(name)) {
+      if (isMatName(name)) {
         charIngredients[name] = (charIngredients[name] || 0) + (row.quantity || 1);
       }
     });
