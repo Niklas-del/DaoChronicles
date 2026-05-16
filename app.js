@@ -2395,6 +2395,14 @@ function renderRecipes(recipes) {
   const grid = document.getElementById('recipe-grid');
   if (!grid) return;
   if (!recipes.length) { grid.innerHTML = '<div style="color:var(--text-dim);font-style:italic;padding:20px;grid-column:1/-1;">No recipes found.</div>'; return; }
+  // Check for equipped cauldron bonus
+  const equip    = getChar()?.equipment || {};
+  const cauldron = Object.values(equip).find(item => item && item.subtype === 'Cauldron');
+  const caulBon  = cauldron?.bonuses || {};
+  const craftBonus   = caulBon.craftBonus   || 0;
+  const doubleChance = caulBon.doubleChance  || 0;
+  const minRate      = caulBon.minSuccessRate|| 0;
+
   grid.innerHTML = recipes.map(r => {
     const col   = RARITY_COLOR[r.rarity] || 'var(--gold-dim)';
     const ingrs = r.ingredients || [];
@@ -2405,6 +2413,15 @@ function renderRecipes(recipes) {
       const cls  = have >= i.qty ? 'have' : 'missing';
       return `<span class="ingr-tag ${cls}">${i.name} ×${i.qty}${cls === 'missing' ? ` (${have})` : ''}</span>`;
     }).join('');
+    // Effective success rate with cauldron
+    const baseRate = r.success_rate || 0;
+    const effRate  = minRate > 0 ? Math.max(minRate, Math.min(99, baseRate + craftBonus)) : Math.min(99, baseRate + craftBonus);
+    const rateHtml = craftBonus > 0
+      ? `<span style="color:var(--text-dim);text-decoration:line-through;font-size:0.75rem;">${baseRate}%</span> <span style="color:var(--jade);">${effRate}%</span>`
+      : `${baseRate}%`;
+    const doubleHtml = doubleChance > 0
+      ? `<span style="color:#e8c96e;font-size:0.72rem;"> · ${doubleChance}% double</span>`
+      : '';
     return `<div class="recipe-card" style="--recipe-color:${col};">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;">
         <div class="recipe-name">💊 ${r.pill_name}</div>
@@ -2413,7 +2430,7 @@ function renderRecipes(recipes) {
       <div class="recipe-effect">${r.effect || ''}</div>
       <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:6px;">
         Min. Cultivation: <span style="color:var(--gold-dim);">${r.min_qi_level}</span> ·
-        Success Rate: <span style="color:${r.success_rate >= 70 ? 'var(--jade)' : r.success_rate >= 40 ? 'var(--gold)' : '#f87171'};">${r.success_rate}%</span>
+        Success Rate: ${rateHtml}${doubleHtml}
       </div>
       <div class="recipe-ingredients">${ingrTags}</div>
       <button class="btn${canCraft ? '' : ' btn-danger'}" onclick="attemptCraft('${r.id}')"
@@ -2444,15 +2461,34 @@ async function attemptCraft(recipeId) {
     showToastShop(`Requires ${recipe.min_qi_level} Qi cultivation to craft this pill.`, true); return;
   }
 
+  // ── Check for equipped cauldron in artifact slot ──────────────────────────
+  const equip      = getChar().equipment || {};
+  const cauldron   = Object.values(equip).find(item =>
+    item && item.subtype === 'Cauldron'
+  );
+  const caulBonuses     = cauldron?.bonuses || {};
+  const craftBonus      = caulBonuses.craftBonus      || 0;
+  const doubleChance    = caulBonuses.doubleChance     || 0;
+  const minSuccessRate  = caulBonuses.minSuccessRate   || 0;
+
+  // Apply cauldron bonus to success rate — capped at 99%
+  let effectiveRate = Math.min(99, recipe.success_rate + craftBonus);
+  // Five Color Cauldron: floor at minSuccessRate
+  if (minSuccessRate > 0) effectiveRate = Math.max(minSuccessRate, effectiveRate);
+
   // Roll success
-  const roll = Math.random() * 100;
-  const success = roll <= recipe.success_rate;
+  const roll    = Math.random() * 100;
+  const success = roll <= effectiveRate;
+
+  // Double pill roll (only on success)
+  const doubleRoll   = Math.random() * 100;
+  const isDouble     = success && doubleChance > 0 && doubleRoll <= doubleChance;
+  const pillQty      = isDouble ? 2 : 1;
 
   // Consume ingredients regardless
   try {
     for (const ingr of ingrs) {
       const newQty = (charIngredients[ingr.name] || 0) - ingr.qty;
-      // Materials now stored in character_items
       const { data: row } = await _sb.from('character_items')
         .select('id,quantity').eq('character_id', charId).eq('item_name', ingr.name).maybeSingle();
       if (row) {
@@ -2467,27 +2503,27 @@ async function attemptCraft(recipeId) {
     }
 
     if (success) {
-      // Add pill to character inventory via character_items
+      // Add pill(s) to character inventory
       const existingPill = await sbFetch('character_items', `character_id=eq.${charId}&item_name=eq.${encodeURIComponent(recipe.pill_name)}`);
       if (existingPill && existingPill.length) {
-        await _sb.from('character_items').update({ quantity: existingPill[0].quantity + 1 }).eq('id', existingPill[0].id);
+        await _sb.from('character_items').update({ quantity: existingPill[0].quantity + pillQty }).eq('id', existingPill[0].id);
       } else {
         await _sb.from('character_items').insert({
           character_id: charId,
           item_name: recipe.pill_name,
-          quantity: 1,
+          quantity: pillQty,
           custom_data: {
             name: recipe.pill_name, type: 'Cultivation Pill',
             pillPoints: recipe.pill_points || 0,
-            pillTrack: recipe.pill_track || 'qi',
-            statBoost: recipe.stat_boost || {},
-            effect: recipe.effect,
+            pillTrack:  recipe.pill_track  || 'qi',
+            statBoost:  recipe.stat_boost  || {},
+            effect:     recipe.effect,
           }
         });
       }
-      showCraftResult(true, recipe.pill_name, roll.toFixed(0), recipe.success_rate);
+      showCraftResult(true, recipe.pill_name, roll.toFixed(0), effectiveRate, isDouble, cauldron?.name);
     } else {
-      showCraftResult(false, recipe.pill_name, roll.toFixed(0), recipe.success_rate);
+      showCraftResult(false, recipe.pill_name, roll.toFixed(0), effectiveRate, false, cauldron?.name);
     }
 
     renderIngredientPouch();
@@ -2495,17 +2531,25 @@ async function attemptCraft(recipeId) {
   } catch(e) { showToastShop(e.message, true); }
 }
 
-function showCraftResult(success, pillName, roll, needed) {
+function showCraftResult(success, pillName, roll, needed, isDouble = false, cauldronName = null) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:400;display:flex;align-items:center;justify-content:center;';
   const box = document.createElement('div');
-  box.style.cssText = `background:var(--ink-3);border:1px solid ${success ? 'var(--gold)' : '#ef4444'};border-radius:12px;padding:30px 36px;text-align:center;max-width:340px;`;
+  box.style.cssText = `background:var(--ink-3);border:1px solid ${success ? 'var(--gold)' : '#ef4444'};border-radius:12px;padding:30px 36px;text-align:center;max-width:360px;`;
+  const doubleHtml = isDouble
+    ? `<div style="font-family:'Cinzel',serif;font-size:0.85rem;color:#e8c96e;margin-bottom:8px;padding:6px 12px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:6px;">✦ Double Pill! ×2 yield</div>`
+    : '';
+  const cauldronHtml = cauldronName
+    ? `<div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:6px;">🔥 ${cauldronName}</div>`
+    : '';
   box.innerHTML = `
-    <div style="font-size:2.5rem;margin-bottom:12px;">${success ? '✨' : '💨'}</div>
+    <div style="font-size:2.5rem;margin-bottom:12px;">${isDouble ? '🎊' : success ? '✨' : '💨'}</div>
     <div style="font-family:'Cinzel Decorative',serif;font-size:1rem;color:${success ? 'var(--gold)' : '#f87171'};margin-bottom:8px;">
-      ${success ? 'Alchemy Success!' : 'Pill Failure'}
+      ${isDouble ? 'Double Yield!' : success ? 'Alchemy Success!' : 'Pill Failure'}
     </div>
+    ${doubleHtml}
     <div style="font-family:'Cinzel',serif;font-size:0.82rem;color:var(--text);margin-bottom:6px;">${pillName}</div>
+    ${cauldronHtml}
     <div style="font-size:0.78rem;color:var(--text-dim);margin-bottom:18px;">
       Rolled ${roll} — needed ≤${needed}
       ${success ? '<br><span style="color:var(--jade);">Added to your inventory!</span>' : '<br><span style="color:#f87171;">Ingredients consumed.</span>'}
