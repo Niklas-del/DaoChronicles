@@ -2226,10 +2226,19 @@ async function loadCharIngredients() {
   const localGold = getChar()?.gold;
   if (localGold !== undefined) { charGold = localGold; updateGoldDisplay(); }
 
+  const KNOWN_MATS = new Set(['Bodhi Leaf','Spirit Flame Crystal','Frostlotus Petal','Dragon Blood Herb','Moon Dew Essence','Phoenix Feather Ash','Thunder Root','Life Spring Water','Dreamlotus Extract','Iron Blood Fungus','Earth Core Shard','Spirit Nebel Dew','Void Crystal','Heaven Silk Thread','Demon Core Fragment']);
+
   try {
-    const res = await sbFetch('character_ingredients', `character_id=eq.${charId}`);
+    // Materials now stored as character_items — read from there
+    const res = await sbFetch('character_items', `character_id=eq.${charId}`);
     charIngredients = {};
-    (res || []).forEach(row => { charIngredients[row.ingredient_name] = row.quantity; });
+    const matNames = new Set((allItems || []).filter(i => i.type === 'Cultivation Pill' || i.type === 'Material').map(i => i.name));
+    (res || []).forEach(row => {
+      const name = row.item_name;
+      if (matNames.has(name) || KNOWN_MATS.has(name)) {
+        charIngredients[name] = (charIngredients[name] || 0) + (row.quantity || 1);
+      }
+    });
 
     // Confirm gold from DB (picks up any admin changes since last load)
     const { data: goldData, error: goldErr } = await _sb
@@ -2307,14 +2316,20 @@ async function buyIngredient(id, name, price) {
     charGold = newGold;
     updateGoldDisplay();
 
-    // Add ingredient — upsert so buying existing materials just stacks
+    // Add material to character_items (same table as other items)
     const existing = charIngredients[name] || 0;
-    const { error: ingErr } = await _sb.from('character_ingredients')
-      .upsert(
-        { character_id: charId, ingredient_name: name, quantity: existing + qty },
-        { onConflict: 'character_id,ingredient_name' }
-      );
-    if (ingErr) throw ingErr;
+    const existingRow = await _sb.from('character_items')
+      .select('id,quantity').eq('character_id', charId).eq('item_name', name).maybeSingle();
+    if (existingRow.data) {
+      const { error: ingErr } = await _sb.from('character_items')
+        .update({ quantity: existingRow.data.quantity + qty })
+        .eq('id', existingRow.data.id);
+      if (ingErr) throw ingErr;
+    } else {
+      const { error: ingErr } = await _sb.from('character_items')
+        .insert({ character_id: charId, item_name: name, quantity: qty, custom_data: {} });
+      if (ingErr) throw ingErr;
+    }
     charIngredients[name] = existing + qty;
 
     // Log transaction
@@ -2427,12 +2442,17 @@ async function attemptCraft(recipeId) {
   try {
     for (const ingr of ingrs) {
       const newQty = (charIngredients[ingr.name] || 0) - ingr.qty;
-      charIngredients[ingr.name] = newQty;
-      if (newQty <= 0) {
-        await _sb.from('character_ingredients').delete().eq('character_id', charId).eq('ingredient_name', ingr.name);
-        delete charIngredients[ingr.name];
-      } else {
-        await _sb.from('character_ingredients').update({ quantity: newQty }).eq('character_id', charId).eq('ingredient_name', ingr.name);
+      // Materials now stored in character_items
+      const { data: row } = await _sb.from('character_items')
+        .select('id,quantity').eq('character_id', charId).eq('item_name', ingr.name).maybeSingle();
+      if (row) {
+        if (newQty <= 0) {
+          await _sb.from('character_items').delete().eq('id', row.id);
+          delete charIngredients[ingr.name];
+        } else {
+          await _sb.from('character_items').update({ quantity: newQty }).eq('id', row.id);
+          charIngredients[ingr.name] = newQty;
+        }
       }
     }
 
