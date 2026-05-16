@@ -208,6 +208,10 @@ let COMPANIONS_DATA    = [];
 const STAGE_BASE = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
 const SUBLEVEL_ADD = { Early: 0, Mid: 0.25, Late: 0.5, Peak: 0.75 };
 
+// Global formatters used by renderStats and updateCultDisplay
+const fmtLvl  = v => Number.isInteger(v) ? v : v.toFixed(2);
+const fmtMult = v => v.toFixed(2) + 'x';
+
 function getStageLevel(c, type) {
   if (!c) c = getChar();
   if (!c) return 1;
@@ -574,7 +578,6 @@ function renderStats() {
     </div>`;
   }
 
-  const fmtMult = v => v.toFixed(2) + 'x';
   const qiTrack   = `<span style="color:var(--qi-light);">⚡ Qi Lv.${fmtLvl(qiLevel)} · ${fmtMult(qiPowerMult)} power</span>`;
   const soulTrack = `<span style="color:var(--soul-light);">💜 Soul Lv.${fmtLvl(soulLevel)} · ${fmtMult(soulPowerMult)} power</span>`;
 
