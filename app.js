@@ -2307,19 +2307,14 @@ async function buyIngredient(id, name, price) {
     charGold = newGold;
     updateGoldDisplay();
 
-    // Add ingredient via Supabase JS client
+    // Add ingredient — upsert so buying existing materials just stacks
     const existing = charIngredients[name] || 0;
-    if (existing > 0) {
-      const { error: ingErr } = await _sb.from('character_ingredients')
-        .update({ quantity: existing + qty })
-        .eq('character_id', charId)
-        .eq('ingredient_name', name);
-      if (ingErr) throw ingErr;
-    } else {
-      const { error: ingErr } = await _sb.from('character_ingredients')
-        .insert({ character_id: charId, ingredient_name: name, quantity: qty });
-      if (ingErr) throw ingErr;
-    }
+    const { error: ingErr } = await _sb.from('character_ingredients')
+      .upsert(
+        { character_id: charId, ingredient_name: name, quantity: existing + qty },
+        { onConflict: 'character_id,ingredient_name' }
+      );
+    if (ingErr) throw ingErr;
     charIngredients[name] = existing + qty;
 
     // Log transaction
